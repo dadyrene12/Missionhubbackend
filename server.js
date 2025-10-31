@@ -23,12 +23,7 @@ const app = express();
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(
-      process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/mission_hub', 
-      {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      }
-    );
+      process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/mission_hub');
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     
@@ -79,19 +74,19 @@ const imageStorage = multer.diskStorage({
   filename: function (req, file, cb) {
     // Create unique filename with original extension
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'job-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
-// Configure multer for resume uploads
-const resumeStorage = multer.diskStorage({
+// Configure multer for document uploads
+const documentStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, resumesDir);
   },
   filename: function (req, file, cb) {
     // Create unique filename with original extension
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'resume-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, 'doc-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
@@ -106,7 +101,7 @@ const imageFilter = (req, file, cb) => {
 };
 
 // File filter to only accept documents (PDF, DOC, DOCX)
-const resumeFilter = (req, file, cb) => {
+const documentFilter = (req, file, cb) => {
   // Accept only document files
   const allowedTypes = [
     'application/pdf',
@@ -130,17 +125,17 @@ const uploadImage = multer({
   fileFilter: imageFilter
 });
 
-// Configure multer for resumes
-const uploadResume = multer({
-  storage: resumeStorage,
+// Configure multer for documents
+const uploadDocument = multer({
+  storage: documentStorage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  fileFilter: resumeFilter
+  fileFilter: documentFilter
 });
 
 // ========================
-// USER MODEL
+// USER MODEL - ENHANCED
 // ========================
 const userSchema = new mongoose.Schema({
   name: {
@@ -179,29 +174,66 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  profile: {
+  // Enhanced personalInfo section
+  personalInfo: {
     phone: String,
     location: String,
-    bio: String,
-    skills: [String],
-    experience: String,
-    education: String,
-    preferredJobType: String,
-    salaryExpectation: Number,
-    resume: String, // Changed to String to store JSON
-    linkedin: String,
-    github: String,
-    portfolio: String,
+    dateOfBirth: Date,
+    gender: String,
+    nationality: String,
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      zipCode: String,
+      country: String
+    }
+  },
+  // Enhanced professionalInfo section
+  professionalInfo: {
     title: String,
     industry: String,
     company: String,
-    yearsOfExperience: Number,
-    currentSalary: Number,
-    desiredSalary: Number,
+    experience: String, // entry, junior, mid, senior, lead, principal
+    educationLevel: String, // highschool, associate, bachelor, master, phd
+    education: String,
+    skills: [String],
+    certifications: [String],
+    languages: [String],
+    preferredJobType: String, // full-time, part-time, contract, freelance, internship, remote
+    preferredLocation: String,
+    salaryExpectation: Number,
+    availability: String, // immediate, 1week, 2weeks, 1month, 2months
     workAuthorization: String,
     relocation: Boolean,
-    profilePhoto: String
-  }
+    linkedin: String,
+    github: String,
+    portfolio: String,
+    bio: String
+  },
+  // Privacy settings
+  privacySettings: {
+    profileVisibility: String, // public, private, connections
+    showContactInfo: Boolean
+  },
+  // Notification preferences
+  notificationPreferences: {
+    emailNotifications: Boolean,
+    pushNotifications: Boolean,
+    jobAlerts: Boolean,
+    applicationUpdates: Boolean
+  },
+  // Profile photo
+  profilePhoto: String,
+  // Documents array - FIXED: Properly defined as an array of objects
+  documents: [{
+    name: String,
+    url: String,
+    uploadDate: Date,
+    size: String,
+    type: String,
+    isPrimary: Boolean
+  }]
 }, {
   timestamps: true
 });
@@ -334,7 +366,7 @@ const jobSchema = new mongoose.Schema({
 const Job = mongoose.model('Job', jobSchema);
 
 // ========================
-// APPLICATION MODEL
+// APPLICATION MODEL - ENHANCED
 // ========================
 const applicationSchema = new mongoose.Schema({
   jobId: {
@@ -383,7 +415,12 @@ const applicationSchema = new mongoose.Schema({
   answers: [{
     question: String,
     answer: String
-  }]
+  }],
+  // Add application date for frontend display
+  applicationDate: {
+    type: Date,
+    default: Date.now
+  }
 }, {
   timestamps: true
 });
@@ -707,12 +744,6 @@ const testEmailConfig = async () => {
     
   } catch (error) {
     console.error('❌ Email configuration error:', error.message);
-    console.log('\n🔧 REQUIRED FIXES:');
-    console.log('   1. Enable 2-Step Verification in Google Account');
-    console.log('   2. Generate App Password at: https://myaccount.google.com/apppasswords');
-    console.log('   3. Use 16-character App Password (no spaces) in .env file');
-    console.log('   4. Ensure EMAIL_USER is your full Gmail address');
-    console.log('\n💡 QUICK FIX: Remove EMAIL_USER & EMAIL_PASS from .env to use development mode');
   }
 };
 
@@ -1116,7 +1147,12 @@ app.post('/api/auth/verify-email', async (req, res) => {
         email: user.email,
         userType: user.userType,
         isVerified: true,
-        profile: user.profile
+        personalInfo: user.personalInfo || {},
+        professionalInfo: user.professionalInfo || {},
+        privacySettings: user.privacySettings || {},
+        notificationPreferences: user.notificationPreferences || {},
+        profilePhoto: user.profilePhoto,
+        documents: user.documents || []
       }
     });
 
@@ -1183,7 +1219,12 @@ app.post('/api/auth/login', async (req, res) => {
         email: user.email,
         userType: user.userType,
         isVerified: true,
-        profile: user.profile
+        personalInfo: user.personalInfo || {},
+        professionalInfo: user.professionalInfo || {},
+        privacySettings: user.privacySettings || {},
+        notificationPreferences: user.notificationPreferences || {},
+        profilePhoto: user.profilePhoto,
+        documents: user.documents || []
       }
     });
 
@@ -1346,24 +1387,13 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // ========================
-// USER ROUTES
+// USER ROUTES - ENHANCED
 // ========================
 
 // Get current user profile
 app.get('/api/users/me', protect, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    
-    // Parse resume string if it exists
-    let profile = { ...user.profile };
-    if (profile.resume && typeof profile.resume === 'string') {
-      try {
-        profile.resume = JSON.parse(profile.resume);
-      } catch (e) {
-        console.error('Error parsing resume data:', e);
-        profile.resume = null;
-      }
-    }
     
     res.status(200).json({
       success: true,
@@ -1373,7 +1403,12 @@ app.get('/api/users/me', protect, async (req, res) => {
         email: user.email,
         userType: user.userType,
         isVerified: user.isVerified,
-        profile
+        personalInfo: user.personalInfo || {},
+        professionalInfo: user.professionalInfo || {},
+        privacySettings: user.privacySettings || {},
+        notificationPreferences: user.notificationPreferences || {},
+        profilePhoto: user.profilePhoto,
+        documents: user.documents || []
       }
     });
   } catch (error) {
@@ -1385,42 +1420,80 @@ app.get('/api/users/me', protect, async (req, res) => {
   }
 });
 
-// Update user profile
+// Get user profile with all sections
+app.get('/api/users/profile', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: user.userType,
+        isVerified: user.isVerified,
+        personalInfo: user.personalInfo || {},
+        professionalInfo: user.professionalInfo || {},
+        privacySettings: user.privacySettings || {},
+        notificationPreferences: user.notificationPreferences || {},
+        profilePhoto: user.profilePhoto,
+        documents: user.documents || []
+      }
+    });
+  } catch (error) {
+    console.error('Get user profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// Update complete user profile - FIXED: Properly handle documents array
 app.put('/api/users/profile', protect, async (req, res) => {
   try {
-    const { name, profile } = req.body;
+    const { personalInfo, professionalInfo, privacySettings, notificationPreferences, documents } = req.body;
     
     const updateData = {};
-    if (name) updateData.name = name;
     
-    if (profile) {
-      // Handle resume field specifically
-      const profileUpdate = { ...req.user.profile, ...profile };
-      
-      // If resume is an object, convert it to string
-      if (profileUpdate.resume && typeof profileUpdate.resume === 'object') {
-        profileUpdate.resume = JSON.stringify(profileUpdate.resume);
+    if (personalInfo) updateData.personalInfo = personalInfo;
+    if (professionalInfo) updateData.professionalInfo = professionalInfo;
+    if (privacySettings) updateData.privacySettings = privacySettings;
+    if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
+    
+    // FIXED: Handle documents array properly
+    if (documents) {
+      // If documents is a string, parse it first
+      let parsedDocuments = documents;
+      if (typeof documents === 'string') {
+        try {
+          parsedDocuments = JSON.parse(documents);
+        } catch (e) {
+          console.error('Error parsing documents:', e);
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid documents format'
+          });
+        }
       }
       
-      updateData.profile = profileUpdate;
+      // Validate that it's an array
+      if (!Array.isArray(parsedDocuments)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Documents must be an array'
+        });
+      }
+      
+      updateData.documents = parsedDocuments;
     }
-
+    
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { $set: updateData },
       { new: true, runValidators: true }
     );
-
-    // Parse resume string for response
-    let responseProfile = { ...user.profile };
-    if (responseProfile.resume && typeof responseProfile.resume === 'string') {
-      try {
-        responseProfile.resume = JSON.parse(responseProfile.resume);
-      } catch (e) {
-        console.error('Error parsing resume data:', e);
-        responseProfile.resume = null;
-      }
-    }
 
     res.status(200).json({
       success: true,
@@ -1431,7 +1504,58 @@ app.put('/api/users/profile', protect, async (req, res) => {
         email: user.email,
         userType: user.userType,
         isVerified: user.isVerified,
-        profile: responseProfile
+        personalInfo: user.personalInfo || {},
+        professionalInfo: user.professionalInfo || {},
+        privacySettings: user.privacySettings || {},
+        notificationPreferences: user.notificationPreferences || {},
+        profilePhoto: user.profilePhoto,
+        documents: user.documents || []
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during profile update'
+    });
+  }
+});
+
+// Update user profile
+app.put('/api/users/me', protect, async (req, res) => {
+  try {
+    const { name, profile } = req.body;
+    
+    const updateData = {};
+    if (name) updateData.name = name;
+    
+    if (profile) {
+      // Handle profile update with backward compatibility
+      const profileUpdate = { ...req.user.profile, ...profile };
+      updateData.profile = profileUpdate;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: user.userType,
+        isVerified: user.isVerified,
+        personalInfo: user.personalInfo || {},
+        professionalInfo: user.professionalInfo || {},
+        privacySettings: user.privacySettings || {},
+        notificationPreferences: user.notificationPreferences || {},
+        profilePhoto: user.profilePhoto,
+        documents: user.documents || []
       }
     });
   } catch (error) {
@@ -1484,17 +1608,6 @@ app.put('/api/users/profile/:field', protect, async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    // Parse resume string for response
-    let responseProfile = { ...user.profile };
-    if (responseProfile.resume && typeof responseProfile.resume === 'string') {
-      try {
-        responseProfile.resume = JSON.parse(responseProfile.resume);
-      } catch (e) {
-        console.error('Error parsing resume data:', e);
-        responseProfile.resume = null;
-      }
-    }
-
     res.status(200).json({
       success: true,
       message: `${field} updated successfully`,
@@ -1504,7 +1617,12 @@ app.put('/api/users/profile/:field', protect, async (req, res) => {
         email: user.email,
         userType: user.userType,
         isVerified: user.isVerified,
-        profile: responseProfile
+        personalInfo: user.personalInfo || {},
+        professionalInfo: user.professionalInfo || {},
+        privacySettings: user.privacySettings || {},
+        notificationPreferences: user.notificationPreferences || {},
+        profilePhoto: user.profilePhoto,
+        documents: user.documents || []
       }
     });
   } catch (error) {
@@ -1752,12 +1870,50 @@ app.post('/api/upload', protect, uploadImage.single('image'), async (req, res) =
   }
 });
 
+// Upload profile photo
+app.post('/api/upload/profile-photo', protect, uploadImage.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    // Update user profile with photo URL
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { 
+        $set: { 
+          profilePhoto: `/uploads/${req.file.filename}`
+        } 
+      },
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile photo uploaded successfully',
+      imageUrl: `/uploads/${req.file.filename}`
+    });
+  } catch (error) {
+    console.error('Profile photo upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while uploading profile photo'
+    });
+  }
+});
+
 // ========================
-// RESUME UPLOAD ROUTE - FIXED VERSION
+// DOCUMENT UPLOAD ROUTES - ENHANCED
 // ========================
 
 // Upload resume endpoint - FIXED
-app.post('/api/upload/resume', protect, uploadResume.single('resume'), async (req, res) => {
+app.post('/api/upload/resume', protect, uploadDocument.single('resume'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -1775,15 +1931,12 @@ app.post('/api/upload/resume', protect, uploadResume.single('resume'), async (re
       type: req.file.mimetype
     };
 
-    // Convert to JSON string for storage
-    const resumeString = JSON.stringify(resumeData);
-
-    // Update user profile with resume information
+    // Add document to user's documents array
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { 
-        $set: { 
-          'profile.resume': resumeString
+        $push: { 
+          documents: resumeData
         } 
       },
       { 
@@ -1813,8 +1966,155 @@ app.post('/api/upload/resume', protect, uploadResume.single('resume'), async (re
   }
 });
 
+// Upload document
+app.post('/api/upload/document', protect, uploadDocument.single('document'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No document file provided'
+      });
+    }
+
+    // Create document data object
+    const documentData = {
+      name: req.file.originalname,
+      url: `/uploads/resumes/${req.file.filename}`,
+      uploadDate: new Date(),
+      size: (req.file.size / 1024 / 1024).toFixed(2) + ' MB',
+      type: req.file.mimetype,
+      isPrimary: false
+    };
+
+    // Add document to user's documents array
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { 
+        $push: { 
+          documents: documentData
+        } 
+      },
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Document uploaded successfully',
+      document: documentData
+    });
+  } catch (error) {
+    console.error('Document upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while uploading document'
+    });
+  }
+});
+
+// Delete document
+app.delete('/api/documents/:documentId', protect, async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    
+    // Find user and remove document
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Find document in user's documents array
+    const documentIndex = user.documents.findIndex(doc => doc._id.toString() === documentId);
+    
+    if (documentIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+    
+    // Get document URL for file deletion
+    const documentUrl = user.documents[documentIndex].url;
+    
+    // Remove document from array
+    user.documents.splice(documentIndex, 1);
+    await user.save();
+    
+    // Delete file from filesystem
+    if (documentUrl) {
+      const filePath = path.join(__dirname, documentUrl);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Document deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete document error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deleting document'
+    });
+  }
+});
+
+// Set primary document
+app.put('/api/documents/:documentId/set-primary', protect, async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    
+    // Find user and update documents
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    // Reset all documents to non-primary
+    user.documents.forEach(doc => {
+      doc.isPrimary = false;
+    });
+    
+    // Set specified document as primary
+    const document = user.documents.find(doc => doc._id.toString() === documentId);
+    
+    if (!document) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+    
+    document.isPrimary = true;
+    await user.save();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Primary document set successfully'
+    });
+  } catch (error) {
+    console.error('Set primary document error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while setting primary document'
+    });
+  }
+});
+
 // ========================
-// APPLICATION ROUTES
+// APPLICATION ROUTES - ENHANCED
 // ========================
 
 // Apply for job
@@ -1853,17 +2153,11 @@ app.post('/api/applications', protect, async (req, res) => {
 
     // Get user's resume from profile if not provided
     let resumeData = resume;
-    if (!resumeData && req.user.profile && req.user.profile.resume) {
-      // Parse resume string if it exists
-      if (typeof req.user.profile.resume === 'string') {
-        try {
-          resumeData = JSON.parse(req.user.profile.resume);
-        } catch (e) {
-          console.error('Error parsing resume data:', e);
-          resumeData = null;
-        }
-      } else {
-        resumeData = req.user.profile.resume;
+    if (!resumeData && req.user.documents && req.user.documents.length > 0) {
+      // Find primary document or first document
+      const primaryDoc = req.user.documents.find(doc => doc.isPrimary) || req.user.documents[0];
+      if (primaryDoc) {
+        resumeData = primaryDoc;
       }
     }
 
@@ -1951,7 +2245,7 @@ app.get('/api/applications/for-my-jobs', protect, async (req, res) => {
 
     const applications = await Application.find({ jobId: { $in: jobIds } })
       .populate('jobId')
-      .populate('userId', 'name email profile')
+      .populate('userId', 'name email personalInfo professionalInfo')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -2143,7 +2437,7 @@ app.put('/api/applications/:id/status', protect, async (req, res) => {
   }
 });
 
-// Cancel application
+// Cancel application with confirmation
 app.delete('/api/applications/:id', protect, async (req, res) => {
   try {
     const application = await Application.findById(req.params.id);
@@ -2168,6 +2462,22 @@ app.delete('/api/applications/:id', protect, async (req, res) => {
 
     // Decrement applicant count
     await Job.findByIdAndUpdate(application.jobId, { $inc: { applicants: -1 } });
+
+    // Create notification for the user
+    await createNotification(
+      req.user.id,
+      'application',
+      'Application Cancelled',
+      `You have cancelled your application for ${application.jobTitle} at ${application.company}`,
+      {
+        priority: 'normal',
+        jobDetails: {
+          title: application.jobTitle,
+          company: application.company,
+          status: 'cancelled'
+        }
+      }
+    );
 
     res.status(200).json({
       success: true,
@@ -2813,7 +3123,7 @@ const createNotification = async (userId, type, title, message, options = {}) =>
 };
 
 // ========================
-// ERROR HANDLING
+// ERROR HANDLING - ENHANCED
 // ========================
 
 // 404 Handler
@@ -2872,14 +3182,29 @@ app.use((err, req, res, next) => {
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
       success: false,
-      message: 'File size too large. Maximum size is 5MB.'
+      message: 'File size too large. Maximum size is 5MB for images and 10MB for documents.'
     });
   }
 
   if (err.message && err.message.includes('Only image files are allowed')) {
     return res.status(400).json({
       success: false,
-      message: 'Only image files are allowed for upload.'
+      message: 'Only image files are allowed for profile photos.'
+    });
+  }
+
+  if (err.message && err.message.includes('Only PDF, DOC, or DOCX files are allowed')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Only PDF, DOC, or DOCX files are allowed for documents.'
+    });
+  }
+
+  // FIXED: Handle CastError for documents array
+  if (err.name === 'CastError' && err.path && err.path.includes('documents')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid document format. Please ensure documents are properly formatted.'
     });
   }
 
