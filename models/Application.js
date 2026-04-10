@@ -89,9 +89,4 @@ applicationSchema.index({ jobId: 1, status: 1 });
 
 const Application = mongoose.model('Application', applicationSchema);
 
-console.log('[DEBUG] Application model registered');
-console.log('[DEBUG] Application schema paths:', Object.keys(Application.schema.paths));
-console.log('[DEBUG] Application schema resume:', Application.schema.paths.resume);
-console.log('[DEBUG] Application schema companyId:', Application.schema.paths.companyId);
-
 module.exports = Application;

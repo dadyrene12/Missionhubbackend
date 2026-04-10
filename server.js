@@ -371,7 +371,8 @@ const corsOptions = {
       'http://localhost:5173',
       'http://localhost:4173',
       'http://127.0.0.1:5173',
-      'http://127.0.0.1:4173'
+      'http://127.0.0.1:4173',
+      'https://mission-hub.vercel.app'
     ];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -3928,16 +3929,7 @@ app.post('/api/notifications/seed-welcome', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 // Connect to database and start server
-console.log('[DEBUG] About to connect to database...');
 connectDB().then(() => {
-  console.log('[DEBUG] Database connected, checking Application model...');
-  const AppModel = mongoose.models.Application;
-  console.log('[DEBUG] mongoose.models.Application:', typeof AppModel);
-  if (AppModel) {
-    console.log('[DEBUG] Application schema paths:', Object.keys(AppModel.schema.paths));
-    console.log('[DEBUG] resume path:', AppModel.schema.paths.resume);
-    console.log('[DEBUG] companyId path:', AppModel.schema.paths.companyId);
-  }
   const server = app.listen(
     PORT,
     () => console.log(`🚀 Server running on port ${PORT}`)
