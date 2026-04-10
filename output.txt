@@ -1,0 +1,223 @@
+[DEBUG] Loading Application model...
+[DEBUG] applicationSchema resume path type: SchemaString {
+  enumValues: [],
+  regExp: null,
+  path: 'resume',
+  instance: 'String',
+  schemaName: 'String',
+  validators: [],
+  getters: [],
+  setters: [],
+  _presplitPath: [ 'resume' ],
+  options: SchemaStringOptions {
+    name: [Function: String],
+    url: [Function: String],
+    uploadDate: [Function: Date],
+    size: [Function: String],
+    type: [Function: String]
+  },
+  _index: null,
+  [Symbol(mongoose#schemaType)]: true
+}
+[DEBUG] Application model registered
+[DEBUG] Application schema paths: [
+  'jobId',         'userId',
+  'jobTitle',      'company',
+  'applicantName', 'applicantEmail',
+  'coverLetter',   'resume',
+  'status',        'notes',
+  'answers',       'companyId',
+  '_id',           'createdAt',
+  'updatedAt',     '__v'
+]
+[DEBUG] Application schema resume: SchemaString {
+  enumValues: [],
+  regExp: null,
+  path: 'resume',
+  instance: 'String',
+  schemaName: 'String',
+  validators: [],
+  getters: [],
+  setters: [],
+  _presplitPath: [ 'resume' ],
+  options: SchemaStringOptions {
+    name: [Function: String],
+    url: [Function: String],
+    uploadDate: [Function: Date],
+    size: [Function: String],
+    type: [Function: String]
+  },
+  _index: null,
+  [Symbol(mongoose#schemaType)]: true
+}
+[DEBUG] Application schema companyId: SchemaObjectId {
+  path: 'companyId',
+  instance: 'ObjectId',
+  schemaName: 'ObjectId',
+  validators: [
+    {
+      validator: [Function (anonymous)],
+      message: 'Path `{PATH}` is required.',
+      type: 'required'
+    }
+  ],
+  getters: [],
+  setters: [],
+  _presplitPath: [ 'companyId' ],
+  options: SchemaObjectIdOptions {
+    type: [Function: SchemaObjectId] {
+      schemaName: 'ObjectId',
+      defaultOptions: {},
+      get: [Function (anonymous)],
+      set: [Function: set],
+      setters: [],
+      _checkRequired: [Function (anonymous)],
+      _cast: [Function: castObjectId],
+      cast: [Function: cast],
+      _defaultCaster: [Function (anonymous)],
+      checkRequired: [Function (anonymous)]
+    },
+    ref: 'User',
+    required: true
+  },
+  _index: null,
+  isRequired: true,
+  requiredValidator: [Function (anonymous)],
+  originalRequiredValue: true,
+  [Symbol(mongoose#schemaType)]: true
+}
+[dotenv@17.2.3] injecting env (8) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+🔧 Initializing Gmail transporter...
+   Email: reneniyi@gmail.com
+   Password length: 16 characters
+🧪 Testing email configuration...
+[routes/applications.js] Application loaded
+[routes/applications.js] Application.schema.paths.resume: SchemaString {
+  enumValues: [],
+  regExp: null,
+  path: 'resume',
+  instance: 'String',
+  schemaName: 'String',
+  validators: [],
+  getters: [],
+  setters: [],
+  _presplitPath: [ 'resume' ],
+  options: SchemaStringOptions {
+    name: [Function: String],
+    url: [Function: String],
+    uploadDate: [Function: Date],
+    size: [Function: String],
+    type: [Function: String]
+  },
+  _index: null,
+  [Symbol(mongoose#schemaType)]: true
+}
+[routes/applications.js] Application.schema.paths.companyId: SchemaObjectId {
+  path: 'companyId',
+  instance: 'ObjectId',
+  schemaName: 'ObjectId',
+  validators: [
+    {
+      validator: [Function (anonymous)],
+      message: 'Path `{PATH}` is required.',
+      type: 'required'
+    }
+  ],
+  getters: [],
+  setters: [],
+  _presplitPath: [ 'companyId' ],
+  options: SchemaObjectIdOptions {
+    type: [Function: SchemaObjectId] {
+      schemaName: 'ObjectId',
+      defaultOptions: {},
+      get: [Function (anonymous)],
+      set: [Function: set],
+      setters: [],
+      _checkRequired: [Function (anonymous)],
+      _cast: [Function: castObjectId],
+      cast: [Function: cast],
+      _defaultCaster: [Function (anonymous)],
+      checkRequired: [Function (anonymous)]
+    },
+    ref: 'User',
+    required: true
+  },
+  _index: null,
+  isRequired: true,
+  requiredValidator: [Function (anonymous)],
+  originalRequiredValue: true,
+  [Symbol(mongoose#schemaType)]: true
+}
+[DEBUG] About to connect to database...
+📧 Email transporter is idle
+✅ MongoDB Connected: 127.0.0.1
+[DEBUG] Database connected, checking Application model...
+[DEBUG] mongoose.models.Application: function
+[DEBUG] Application schema paths: [
+  'jobId',         'userId',
+  'jobTitle',      'company',
+  'applicantName', 'applicantEmail',
+  'coverLetter',   'resume',
+  'status',        'notes',
+  'answers',       'companyId',
+  '_id',           'createdAt',
+  'updatedAt',     '__v'
+]
+[DEBUG] resume path: SchemaString {
+  enumValues: [],
+  regExp: null,
+  path: 'resume',
+  instance: 'String',
+  schemaName: 'String',
+  validators: [],
+  getters: [],
+  setters: [],
+  _presplitPath: [ 'resume' ],
+  options: SchemaStringOptions {
+    name: [Function: String],
+    url: [Function: String],
+    uploadDate: [Function: Date],
+    size: [Function: String],
+    type: [Function: String]
+  },
+  _index: null,
+  [Symbol(mongoose#schemaType)]: true
+}
+[DEBUG] companyId path: SchemaObjectId {
+  path: 'companyId',
+  instance: 'ObjectId',
+  schemaName: 'ObjectId',
+  validators: [
+    {
+      validator: [Function (anonymous)],
+      message: 'Path `{PATH}` is required.',
+      type: 'required'
+    }
+  ],
+  getters: [],
+  setters: [],
+  _presplitPath: [ 'companyId' ],
+  options: SchemaObjectIdOptions {
+    type: [Function: SchemaObjectId] {
+      schemaName: 'ObjectId',
+      defaultOptions: {},
+      get: [Function (anonymous)],
+      set: [Function: set],
+      setters: [],
+      _checkRequired: [Function (anonymous)],
+      _cast: [Function: castObjectId],
+      cast: [Function: cast],
+      _defaultCaster: [Function (anonymous)],
+      checkRequired: [Function (anonymous)]
+    },
+    ref: 'User',
+    required: true
+  },
+  _index: null,
+  isRequired: true,
+  requiredValidator: [Function (anonymous)],
+  originalRequiredValue: true,
+  [Symbol(mongoose#schemaType)]: true
+}
+🔌 WebSocket server initialized
+🚀 Server running on port 5000

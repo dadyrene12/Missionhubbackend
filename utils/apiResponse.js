@@ -15,11 +15,19 @@ class ApiResponse {
   /**
    * Send error response
    * @param {Object} res - Express response object
-   * @param {String} message - Error message
+   * @param {String|Object} message - Error message or object with message and additional data
    * @param {Number} statusCode - HTTP status code
    * @param {Object} errors - Additional error details
    */
   static error(res, message = 'Internal Server Error', statusCode = 500, errors = {}) {
+    // Handle object with message and additional properties
+    if (typeof message === 'object' && message !== null) {
+      return res.status(statusCode).json({
+        success: false,
+        ...message,
+      });
+    }
+    
     return res.status(statusCode).json({
       success: false,
       message,

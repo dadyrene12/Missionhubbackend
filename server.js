@@ -11,6 +11,11 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+// Import models
+const Application = require('./models/Application');
+const User = require('./models/User');
+const Job = require('./models/Job');
+
 // Load environment variables
 dotenv.config();
 
@@ -23,7 +28,12 @@ const app = express();
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(
-      process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/mission_hub');
+      process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/mission_hub', 
+      {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      }
+    );
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     
@@ -66,6 +76,12 @@ if (!fs.existsSync(resumesDir)) {
   fs.mkdirSync(resumesDir, { recursive: true });
 }
 
+// Create company logos directory if it doesn't exist
+const logosDir = path.join(__dirname, 'uploads', 'logos');
+if (!fs.existsSync(logosDir)) {
+  fs.mkdirSync(logosDir, { recursive: true });
+}
+
 // Configure multer for image uploads
 const imageStorage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -74,19 +90,31 @@ const imageStorage = multer.diskStorage({
   filename: function (req, file, cb) {
     // Create unique filename with original extension
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, 'job-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
-// Configure multer for document uploads
-const documentStorage = multer.diskStorage({
+// Configure multer for resume uploads
+const resumeStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, resumesDir);
   },
   filename: function (req, file, cb) {
     // Create unique filename with original extension
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'doc-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, 'resume-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// Configure multer for company logo uploads
+const logoStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, logosDir);
+  },
+  filename: function (req, file, cb) {
+    // Create unique filename with original extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'logo-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
@@ -101,7 +129,7 @@ const imageFilter = (req, file, cb) => {
 };
 
 // File filter to only accept documents (PDF, DOC, DOCX)
-const documentFilter = (req, file, cb) => {
+const resumeFilter = (req, file, cb) => {
   // Accept only document files
   const allowedTypes = [
     'application/pdf',
@@ -125,299 +153,128 @@ const uploadImage = multer({
   fileFilter: imageFilter
 });
 
-// Configure multer for documents
-const uploadDocument = multer({
-  storage: documentStorage,
+// Configure multer for resumes
+const uploadResume = multer({
+  storage: resumeStorage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  fileFilter: documentFilter
+  fileFilter: resumeFilter
+});
+
+// Configure multer for company logos
+const uploadLogo = multer({
+  storage: logoStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: imageFilter
 });
 
 // ========================
-// USER MODEL - ENHANCED
+// USER MODEL
 // ========================
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Please add a name'],
-    trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
-  },
-  email: {
-    type: String,
-    required: [true, 'Please add an email'],
-    unique: true,
-    lowercase: true,
-    trim: true,
-    validate: {
-      validator: function(email) {
-        if (!email || email.trim() === '') return false;
-        return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
-      },
-      message: 'Please add a valid email'
-    }
-  },
-  password: {
-    type: String,
-    required: [true, 'Please add a password'],
-    minlength: [8, 'Password must be at least 8 characters'],
-    select: false
-  },
-  userType: {
-    type: String,
-    required: true,
-    enum: ['jobSeeker', 'company'],
-    default: 'jobSeeker'
-  },
-  isVerified: {
-    type: Boolean,
-    default: false
-  },
-  // Enhanced personalInfo section
-  personalInfo: {
-    phone: String,
-    location: String,
-    dateOfBirth: Date,
-    gender: String,
-    nationality: String,
-    address: {
-      street: String,
-      city: String,
-      state: String,
-      zipCode: String,
-      country: String
-    }
-  },
-  // Enhanced professionalInfo section
-  professionalInfo: {
-    title: String,
-    industry: String,
-    company: String,
-    experience: String, // entry, junior, mid, senior, lead, principal
-    educationLevel: String, // highschool, associate, bachelor, master, phd
-    education: String,
-    skills: [String],
-    certifications: [String],
-    languages: [String],
-    preferredJobType: String, // full-time, part-time, contract, freelance, internship, remote
-    preferredLocation: String,
-    salaryExpectation: Number,
-    availability: String, // immediate, 1week, 2weeks, 1month, 2months
-    workAuthorization: String,
-    relocation: Boolean,
-    linkedin: String,
-    github: String,
-    portfolio: String,
-    bio: String
-  },
-  // Privacy settings
-  privacySettings: {
-    profileVisibility: String, // public, private, connections
-    showContactInfo: Boolean
-  },
-  // Notification preferences
-  notificationPreferences: {
-    emailNotifications: Boolean,
-    pushNotifications: Boolean,
-    jobAlerts: Boolean,
-    applicationUpdates: Boolean
-  },
-  // Profile photo
-  profilePhoto: String,
-  // Documents array - FIXED: Properly defined as an array of objects
-  documents: [{
-    name: String,
-    url: String,
-    uploadDate: Date,
-    size: String,
-    type: String,
-    isPrimary: Boolean
-  }]
-}, {
-  timestamps: true
-});
-
-// Encrypt password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    return next();
-  }
-
-  // Validate email before saving
-  if (!this.email || this.email.trim() === '') {
-    return next(new Error('Email is required and cannot be empty'));
-  }
-
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
-
-// Method to compare password
-userSchema.methods.matchPassword = async function(enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
-};
-
-// Method to get signed JWT token
-userSchema.methods.getSignedJwtToken = function() {
-  return jwt.sign(
-    { id: this._id }, 
-    process.env.JWT_SECRET || 'fallback-secret-key-2024',
-    { expiresIn: '30d' }
-  );
-};
-
-const User = mongoose.model('User', userSchema);
+// User model is now in models/User.js
 
 // ========================
 // JOB MODEL
 // ========================
-const jobSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: [true, 'Please add a job title'],
-    trim: true,
-    maxlength: [100, 'Title cannot be more than 100 characters']
-  },
-  company: {
-    type: String,
-    required: [true, 'Please add a company name'],
-    trim: true
-  },
-  location: {
-    type: String,
-    required: [true, 'Please add a location'],
-    trim: true
-  },
-  type: {
-    type: String,
-    required: true,
-    enum: ['full-time', 'part-time', 'contract', 'internship', 'remote'],
-    default: 'full-time'
-  },
-  category: {
-    type: String,
-    required: true,
-    enum: ['technology', 'marketing', 'finance', 'healthcare', 'design', 'sales', 'education', 'other'],
-    default: 'technology'
-  },
-  experience: {
-    type: String,
-    required: true,
-    enum: ['entry', 'junior', 'mid', 'senior', 'lead', 'principal'],
-    default: 'mid'
-  },
-  salary: {
-    type: String,
-    trim: true
-  },
-  salaryMin: {
-    type: Number,
-    default: 0
-  },
-  salaryMax: {
-    type: Number,
-    default: 0
-  },
-  description: {
-    type: String,
-    required: [true, 'Please add a job description']
-  },
-  responsibilities: [String],
-  requirements: [String],
-  benefits: [String],
-  skills: [String],
-  remote: {
-    type: Boolean,
-    default: false
-  },
-  urgent: {
-    type: Boolean,
-    default: false
-  },
-  featured: {
-    type: Boolean,
-    default: false
-  },
-  applicants: {
-    type: Number,
-    default: 0
-  },
-  contactEmail: String,
-  contactPhone: String,
-  applicationUrl: String,
-  companyLogo: String,
-  companySize: String,
-  workCulture: String,
-  image: {
-    type: String,
-    default: ''
-  },
-  postedBy: {
+// Job model is now in models/Job.js
+
+// ========================
+// APPLICATION MODEL
+// ========================
+// NOTE: Application model is now in models/Application.js
+// It's required by the routes and properly handles the resume field
+
+// ========================
+// COMPANY PROFILE MODEL
+// ========================
+const companyProfileSchema = new mongoose.Schema({
+  userId: {
     type: mongoose.Schema.ObjectId,
     ref: 'User',
+    required: true,
+    unique: true
+  },
+  companyName: {
+    type: String,
     required: true
+  },
+  companyEmail: String,
+  companyPhone: String,
+  website: String,
+  industry: String,
+  companySize: {
+    type: String,
+    enum: ['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+'],
+    default: '1-10'
+  },
+  foundedYear: Number,
+  headquarters: String,
+  description: String,
+  mission: String,
+  vision: String,
+  values: [String],
+  benefits: [String],
+  logo: String,
+  coverImage: String,
+  socialMedia: {
+    linkedin: String,
+    twitter: String,
+    facebook: String,
+    instagram: String
+  },
+  verified: {
+    type: Boolean,
+    default: false
+  },
+  subscription: {
+    plan: {
+      type: String,
+      enum: ['free', 'basic', 'premium', 'enterprise'],
+      default: 'free'
+    },
+    startDate: Date,
+    endDate: Date,
+    status: {
+      type: String,
+      enum: ['active', 'expired', 'cancelled'],
+      default: 'active'
+    }
+  },
+  stats: {
+    totalJobsPosted: { type: Number, default: 0 },
+    activeJobs: { type: Number, default: 0 },
+    totalApplications: { type: Number, default: 0 },
+    totalViews: { type: Number, default: 0 },
+    averageResponseTime: { type: Number, default: 0 }
   }
 }, {
   timestamps: true
 });
 
-const Job = mongoose.model('Job', jobSchema);
+const CompanyProfile = mongoose.model('CompanyProfile', companyProfileSchema);
 
 // ========================
-// APPLICATION MODEL - ENHANCED
+// COMPANY ACTIVITY MODEL
 // ========================
-const applicationSchema = new mongoose.Schema({
-  jobId: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'Job',
-    required: true
-  },
-  userId: {
+const companyActivitySchema = new mongoose.Schema({
+  companyId: {
     type: mongoose.Schema.ObjectId,
     ref: 'User',
     required: true
   },
-  jobTitle: {
+  type: {
     type: String,
+    enum: ['job_posted', 'job_updated', 'job_closed', 'application_reviewed', 
+           'application_approved', 'application_rejected', 'message_sent', 
+           'profile_updated', 'subscription_changed'],
     required: true
   },
-  company: {
-    type: String,
-    required: true
-  },
-  applicantName: {
-    type: String,
-    required: true
-  },
-  applicantEmail: {
-    type: String,
-    required: true
-  },
-  coverLetter: String,
-  resume: {
-    name: String,
-    url: String,
-    uploadDate: Date,
-    size: String,
-    type: String
-  },
-  status: {
-    type: String,
-    enum: ['pending', 'reviewed', 'approved', 'rejected'],
-    default: 'pending'
-  },
-  notes: {
-    type: String,
-    default: ''
-  },
-  answers: [{
-    question: String,
-    answer: String
-  }],
-  // Add application date for frontend display
-  applicationDate: {
+  description: String,
+  metadata: mongoose.Schema.Types.Mixed,
+  timestamp: {
     type: Date,
     default: Date.now
   }
@@ -425,169 +282,122 @@ const applicationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-applicationSchema.index({ jobId: 1, userId: 1 }, { unique: true });
-
-const Application = mongoose.model('Application', applicationSchema);
+const CompanyActivity = mongoose.model('CompanyActivity', companyActivitySchema);
 
 // ========================
-// MESSAGE MODEL - ENHANCED
+// TALENT POOL MODEL
 // ========================
-const messageSchema = new mongoose.Schema({
-  fromUserId: {
+const talentPoolSchema = new mongoose.Schema({
+  companyId: {
     type: mongoose.Schema.ObjectId,
     ref: 'User',
     required: true
   },
-  toUserId: {
+  candidateId: {
     type: mongoose.Schema.ObjectId,
     ref: 'User',
     required: true
+  },
+  source: {
+    type: String,
+    enum: ['application', 'search', 'referral', 'manual'],
+    default: 'application'
   },
   jobId: {
     type: mongoose.Schema.ObjectId,
     ref: 'Job'
   },
-  applicationId: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'Application'
-  },
-  subject: {
+  status: {
     type: String,
-    required: true
+    enum: ['new', 'contacted', 'interviewing', 'offered', 'hired', 'archived'],
+    default: 'new'
   },
-  body: {
-    type: String,
-    required: true
+  notes: String,
+  rating: {
+    type: Number,
+    min: 1,
+    max: 5
   },
-  read: {
-    type: Boolean,
-    default: false
-  },
-  sentAt: {
-    type: Date,
-    default: Date.now
-  },
-  // Add content field for compatibility
-  content: {
-    type: String
-  },
-  // Add type field for message categorization
-  type: {
-    type: String,
-    enum: ['general', 'job_related', 'application_related'],
-    default: 'general'
-  },
-  // Add priority field
-  priority: {
-    type: String,
-    enum: ['low', 'normal', 'high'],
-    default: 'normal'
-  }
+  tags: [String],
+  lastContacted: Date,
+  nextFollowUp: Date
 }, {
   timestamps: true
 });
 
-// Virtual to ensure content field is populated from body if not provided
-messageSchema.virtual('contentVirtual').get(function() {
-  return this.content || this.body;
-});
+talentPoolSchema.index({ companyId: 1, candidateId: 1 }, { unique: true });
 
-// Pre-save middleware to populate content field from body if content is empty
-messageSchema.pre('save', function(next) {
-  if (!this.content && this.body) {
-    this.content = this.body;
-  }
-  next();
-});
-
-const Message = mongoose.model('Message', messageSchema);
+const TalentPool = mongoose.model('TalentPool', talentPoolSchema);
 
 // ========================
-// NOTIFICATION MODEL - ENHANCED
+// INTERVIEW MODEL (use from models/Interview.js to avoid duplicates)
 // ========================
-const notificationSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  type: {
-    type: String,
-    required: true,
-    enum: ['job', 'application', 'profile', 'message', 'system', 'reply']
-  },
-  title: {
-    type: String,
-    required: true
-  },
-  message: {
-    type: String,
-    required: true
-  },
-  read: {
-    type: Boolean,
-    default: false
-  },
-  priority: {
-    type: String,
-    enum: ['low', 'normal', 'high'],
-    default: 'normal'
-  },
-  jobDetails: {
-    title: String,
-    company: String,
-    status: String,
-    salary: String,
-    location: String
-  },
-  messageDetails: {
-    subject: String,
-    preview: String
-  },
-  actions: [{
-    label: String,
-    primary: Boolean,
-    handler: String // Store as string since functions can't be stored in MongoDB
-  }],
-  // Add relatedId and relatedType for navigation
-  relatedId: {
-    type: mongoose.Schema.ObjectId
-  },
-  relatedType: {
-    type: String,
-    enum: ['message', 'job', 'application', 'profile']
-  },
-  date: {
-    type: Date,
-    default: Date.now
-  }
-}, {
-  timestamps: true
-});
+// Interview model is now in models/Interview.js
+const Interview = require('./models/Interview');
 
-const Notification = mongoose.model('Notification', notificationSchema);
+// ========================
+// PAYMENT MODEL (use from models/Payment.js to avoid duplicates)
+// ========================
+const Payment = require('./models/Payment');
+
+// ========================
+// MESSAGE MODEL (use from models/Message.js to avoid duplicates)
+// ========================
+const Message = require('./models/Message');
+
+// ========================
+// NOTIFICATION MODEL (use from models/Notification.js to avoid duplicates)
+// ========================
+const Notification = require('./models/Notification');
+
+// ========================
+// EXAM MODEL (use from models/Exam.js to avoid duplicates)
+// ========================
+const Exam = require('./models/Exam');
+
+// ========================
+// ADVERTISEMENT MODEL (use from models/Advertisement.js to avoid duplicates)
+// ========================
+const Advertisement = require('./models/Advertisement');
 
 // ========================
 // MIDDLEWARE
 // ========================
 
-// Rate limiting
+// Enable CORS FIRST - before rate limiting
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:4173',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:4173'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'Content-Type']
+};
+app.use(cors(corsOptions));
+
+// Rate limiting - AFTER CORS
 const limiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 mins
-  max: 100,
+  windowMs: 60 * 1000, // 1 minute window
+  max: 500, // 500 requests per minute (increased for development)
+  message: { success: false, message: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
 // Set security headers
 app.use(helmet());
-
-// Enable CORS
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
@@ -595,6 +405,41 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Serve resume files with correct Content-Type headers
+app.get('/api/resume/:filename', async (req, res) => {
+  try {
+    // Check authentication - allow Bearer token or query param token
+    let token = req.headers.authorization?.split(' ')[1] || req.query.token;
+    
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Authentication required' });
+    }
+    
+    // Verify token
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin');
+    
+    const filename = req.params.filename;
+    const filePath = path.join(__dirname, 'uploads', 'resumes', filename);
+    
+    // Verify file exists
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'Resume file not found' });
+    }
+    
+    // Set correct Content-Type for PDFs
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="' + filename + '"');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('Error serving resume:', error);
+    res.status(401).json({ success: false, message: 'Invalid or expired token' });
+  }
+});
 
 // ========================
 // AUTH MIDDLEWARE
@@ -607,6 +452,7 @@ const protect = async (req, res, next) => {
   }
 
   if (!token) {
+    console.log('🔒 No token provided in request');
     return res.status(401).json({
       success: false,
       message: 'Not authorized to access this route'
@@ -614,8 +460,11 @@ const protect = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret-key-2024');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin');
+    console.log('Token decoded, user ID:', decoded.id);
+    
     const user = await User.findById(decoded.id);
+    console.log('User found:', user ? `yes (${user.email})` : 'no');
     
     if (!user) {
       return res.status(401).json({
@@ -627,11 +476,23 @@ const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
+    console.log('Token verification failed:', error.message);
     return res.status(401).json({
       success: false,
       message: 'Not authorized to access this route'
     });
   }
+};
+
+// Company only middleware
+const companyOnly = (req, res, next) => {
+  if (req.user.userType !== 'company') {
+    return res.status(403).json({
+      success: false,
+      message: 'This route is only accessible to company accounts'
+    });
+  }
+  next();
 };
 
 // ========================
@@ -744,6 +605,12 @@ const testEmailConfig = async () => {
     
   } catch (error) {
     console.error('❌ Email configuration error:', error.message);
+    console.log('\n🔧 REQUIRED FIXES:');
+    console.log('   1. Enable 2-Step Verification in Google Account');
+    console.log('   2. Generate App Password at: https://myaccount.google.com/apppasswords');
+    console.log('   3. Use 16-character App Password (no spaces) in .env file');
+    console.log('   4. Ensure EMAIL_USER is your full Gmail address');
+    console.log('\n💡 QUICK FIX: Remove EMAIL_USER & EMAIL_PASS from .env to use development mode');
   }
 };
 
@@ -797,9 +664,101 @@ const processEmailQueue = async () => {
   isProcessingEmails = false;
 };
 
+// Helper function to create a notification
+const createNotification = async (userId, type, title, message, options = {}) => {
+  try {
+    const notification = await Notification.create({
+      userId,
+      type,
+      title,
+      message,
+      priority: options.priority || 'normal',
+      jobDetails: options.jobDetails || {},
+      messageDetails: options.messageDetails || {},
+      actions: options.actions || [],
+      relatedId: options.relatedId,
+      relatedType: options.relatedType
+    });
+    
+    return notification;
+  } catch (error) {
+    console.error('Create notification error:', error);
+    return null;
+  }
+};
+
+// Helper function to create company activity
+const createCompanyActivity = async (companyId, type, description, metadata = {}) => {
+  try {
+    const activity = await CompanyActivity.create({
+      companyId,
+      type,
+      description,
+      metadata
+    });
+    return activity;
+  } catch (error) {
+    console.error('Create company activity error:', error);
+    return null;
+  }
+};
+
 // ========================
 // ROUTES
 // ========================
+
+// Import routes
+const adminAuthController = require('./controllers/adminAuthController');
+const userRoutes = require('./routes/users');
+const jobRoutes = require('./routes/jobs');
+const applicationRoutes = require('./routes/applications');
+const messageRoutes = require('./routes/messages');
+const notificationRoutes = require('./routes/notifications');
+const adminRoutes = require('./routes/admin');
+const analyticsRoutes = require('./routes/analytics');
+const aiMatchingRoutes = require('./routes/ai-matching');
+const realtimeRoutes = require('./routes/realtime');
+const subscriptionRoutes = require('./routes/subscription');
+const interviewRoutes = require('./routes/interview');
+const gamificationRoutes = require('./routes/gamification');
+const companyRoutes = require('./routes/company');
+const dashboardRoutes = require('./routes/dashboard');
+const examsRoutes = require('./routes/exams');
+const activitiesRoutes = require('./routes/activities');
+const paymentsRoutes = require('./routes/payments');
+const talentPoolRoutes = require('./routes/talent-pool');
+const settingsRoutes = require('./routes/settings');
+const advertisingRoutes = require('./routes/advertising');
+
+// Mount admin auth routes (before other routes to avoid conflicts)
+app.post('/api/auth/admin/create-super-admin', adminAuthController.createSuperAdmin);
+app.post('/api/auth/admin/login', adminAuthController.superAdminLogin);
+app.get('/api/auth/admin/verify', adminAuthController.verifySuperAdmin);
+app.post('/api/auth/admin/logout', adminAuthController.superAdminLogout);
+
+// Mount routes
+app.use('/api/users', userRoutes);
+app.use('/api/jobs', jobRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/notifications', notificationRoutes);
+// Auth routes are inline in server.js (lines 884-1318)
+app.use('/api/admin', adminRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/ai-matching', aiMatchingRoutes);
+app.use('/api/realtime', realtimeRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/interview', interviewRoutes);
+app.use('/api/gamification', gamificationRoutes);
+app.use('/api/company', companyRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/exams', examsRoutes);
+app.use('/api/activities', activitiesRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/talent-pool', talentPoolRoutes);
+app.use('/api/admin/settings', settingsRoutes);
+app.use('/api/advertising', advertisingRoutes);
+app.use('/api/newsletter', require('./routes/newsletter'));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -833,7 +792,7 @@ app.post('/api/test-email', async (req, res) => {
       subject: 'Mission Hub - Test Email ✅',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-          <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #1b5ff1ff 100%); padding: 30px; border-radius: 10px 10px 0 0; color: white;">
+          <div style="text-align: center; padding: 30px; border-radius: 10px 10px 0 0; color: white;">
             <h1 style="margin: 0; font-size: 28px;"> Mission Hub</h1>
             <p style="margin: 10px 0 0 0; opacity: 0.9;">Email Test Successful</p>
           </div>
@@ -873,8 +832,28 @@ app.post('/api/test-email', async (req, res) => {
   }
 });
 
+// ========================
+// HEALTH CHECK (early, before any complex routes)
+// ========================
+app.get('/api/quick-test', (req, res) => {
+  console.log('[QUICK_TEST] Endpoint hit!');
+  res.json({ success: true, message: 'Quick test works!' });
+});
+
+// ========================
+// AUTH ROUTES
+// ========================
+console.log('[DEBUG] Registering auth routes at lines 842+...');
+
+// Debug test endpoint
+app.post('/api/auth/test', (req, res) => {
+  console.log('[TEST] /api/auth/test endpoint hit');
+  res.json({ success: true, message: 'Test endpoint works' });
+});
+
 // Resend verification code
 app.post('/api/auth/resend-code', async (req, res) => {
+  console.log('[AUTH] /api/auth/resend-code hit');
   try {
     const { email } = req.body;
     if (!email) {
@@ -882,20 +861,14 @@ app.post('/api/auth/resend-code', async (req, res) => {
     }
     const cleanEmail = email.toLowerCase().trim();
 
-    const user = await User.findOne({ email: cleanEmail });
-    if (!user) {
-      // Don't leak existence
-      return res.json({ success: true, message: 'If the account exists, a code has been sent' });
-    }
-    if (user.isVerified) {
-      return res.status(400).json({ success: false, message: 'Account already verified' });
+    const existingPending = verificationCodes.get(cleanEmail);
+    if (!existingPending || Date.now() > existingPending.expiresAt) {
+      return res.status(404).json({ success: false, message: 'No pending verification found for this email. Please start a new registration.' });
     }
 
     const verificationCode = generateVerificationCode();
-    verificationCodes.set(cleanEmail, {
-      code: verificationCode,
-      expiresAt: Date.now() + 10 * 60 * 1000
-    });
+    const expiresAt = Date.now() + 13 * 60 * 60 * 1000;
+    verificationCodes.set(cleanEmail, { code: verificationCode, expiresAt });
 
     const emailTransporter = req.app.get('emailTransporter');
     try {
@@ -908,24 +881,272 @@ app.post('/api/auth/resend-code', async (req, res) => {
             <h2 style="color: #2563eb; text-align: center;">Email Verification</h2>
             <p>Use the verification code below to verify your email address:</p>
             <div style="text-align:center; font-size: 28px; letter-spacing: 6px; font-weight: bold;">${verificationCode}</div>
-            <p style="color:#ef4444; text-align:center;">This code expires in 10 minutes.</p>
+            <p style="color:#ef4444; text-align:center;">This code expires in 13 hours.</p>
           </div>
         `
       });
     } catch (e) {
-      // In dev mode, code is logged by transporter
+      console.log('Email send failed (dev mode):', e.message);
     }
 
-    return res.json({ success: true, message: 'Verification code sent' });
+    return res.json({ success: true, message: 'New verification code sent to your email', expiresIn: 13 });
   } catch (error) {
     console.error('Resend code error:', error);
     return res.status(500).json({ success: false, message: 'Server error during resend' });
   }
 });
 
-// ========================
-// AUTH ROUTES
-// ========================
+// Send verification code (start registration)
+app.post('/api/auth/send-code', async (req, res) => {
+  console.log('[AUTH] /api/auth/send-code hit, body:', req.body);
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+    const cleanEmail = email.toLowerCase().trim();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address' });
+    }
+
+    const userExists = await User.findOne({ email: cleanEmail });
+    if (userExists) {
+      return res.status(400).json({ success: false, message: 'An account with this email already exists' });
+    }
+
+    const existingPending = verificationCodes.get(cleanEmail);
+    let verificationCode;
+    let expiresAt;
+
+    if (existingPending && Date.now() < existingPending.expiresAt) {
+      verificationCode = existingPending.code;
+      expiresAt = existingPending.expiresAt;
+    } else {
+      verificationCode = generateVerificationCode();
+      expiresAt = Date.now() + 13 * 60 * 60 * 1000;
+      verificationCodes.set(cleanEmail, { code: verificationCode, expiresAt });
+    }
+
+    const emailTransporter = req.app.get('emailTransporter');
+    try {
+      await emailTransporter.sendMail({
+        from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
+        to: cleanEmail,
+        subject: 'Your Verification Code - Mission Hub',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+            <h2 style="color: #2563eb; text-align: center;">Email Verification</h2>
+            <p>Use the verification code below to verify your email address:</p>
+            <div style="text-align:center; font-size: 28px; letter-spacing: 6px; font-weight: bold;">${verificationCode}</div>
+            <p style="color:#ef4444; text-align:center;">This code expires in 13 hours.</p>
+          </div>
+        `
+      });
+    } catch (e) {
+      console.log('Email send failed (dev mode):', e.message);
+    }
+
+    return res.json({ 
+      success: true, 
+      message: 'Verification code sent to your email',
+      expiresIn: 13
+    });
+  } catch (error) {
+    console.error('Send code error:', error);
+    return res.status(500).json({ success: false, message: 'Server error during send code' });
+  }
+});
+
+// Verify code and complete registration
+app.post('/api/auth/verify-code', async (req, res) => {
+  try {
+    const { email, verificationCode, name, password, userType } = req.body;
+
+    if (!email || !verificationCode) {
+      return res.status(400).json({ success: false, message: 'Email and verification code are required' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const storedCode = verificationCodes.get(cleanEmail);
+    
+    if (!storedCode || Date.now() > storedCode.expiresAt) {
+      verificationCodes.delete(cleanEmail);
+      return res.status(400).json({ success: false, message: 'Verification code expired or not found. Please start a new registration.' });
+    }
+
+    if (storedCode.code !== verificationCode) {
+      return res.status(400).json({ success: false, message: 'Invalid verification code' });
+    }
+
+    const userExists = await User.findOne({ email: cleanEmail });
+    if (userExists) {
+      return res.status(400).json({ success: false, message: 'An account with this email already exists' });
+    }
+
+    const finalUserType = userType || 'jobSeeker';
+    const user = await User.create({
+      name: name || cleanEmail.split('@')[0],
+      email: cleanEmail,
+      password: password,
+      userType: finalUserType,
+      isVerified: true,
+      isActive: true,
+      emailVerified: true
+    });
+
+    verificationCodes.delete(cleanEmail);
+
+    const token = user.getSignedJwtToken();
+
+    // Create welcome notifications for new job seeker users
+    if (user.userType === 'jobSeeker') {
+      try {
+        const Notification = require('./models/Notification');
+        
+        const welcomeNotifications = [
+          {
+            type: 'system',
+            title: "Welcome to MissionHub! 🚀",
+            message: "We are excited to help you bridge the gap between your unique talents and the world's leading companies. Our platform is more than just a job board—it is an AI-powered career agent designed to work for you 24/7.",
+            priority: 'high',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "🎯 How the System Works for You",
+            message: "Precision Talent Matching: We don't just look at job titles. Our system analyzes your specific skills and 'Company DNA' to ensure that every connection made is a perfect fit for both your career goals and the employer's culture.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "🤖 Your Personal AI Scout",
+            message: "You don't need to spend hours searching. Our built-in AI constantly monitors new opportunities. The moment a job is posted that matches your unique profile, the system notifies you instantly so you can be first in line.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "📈 Personalized Career Feed",
+            message: "Stay ahead of the curve with a custom dashboard. Beyond job alerts, you'll receive related content, industry trends, and professional insights tailored specifically to your expertise.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "Your First Step: Fill Your Profile 📝",
+            message: "To let the AI start hunting for you, we need to know who you are. Your profile is your Digital DNA—the more detail you provide, the more accurately our AI can advocate for you.\n\nClick 'Edit Profile' on your dashboard to:\n• Highlight your Talents: Add your core skills, certifications, and project history\n• Set your Preferences: Tell the AI exactly what kind of companies and roles you are looking for",
+            priority: 'high',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "Ready to find your next big move?",
+            message: "Complete your profile now and let our AI find the perfect opportunities for you!",
+            priority: 'normal',
+            senderType: 'system'
+          }
+        ];
+        
+        for (const notif of welcomeNotifications) {
+          await Notification.create({
+            userId: user._id,
+            ...notif,
+            read: false
+          });
+        }
+        console.log('✅ Welcome notifications created for new user:', user.email);
+      } catch (notifError) {
+        console.error('Failed to create welcome notifications:', notifError.message);
+      }
+    }
+
+    // Create welcome notifications for new company users
+    if (user.userType === 'company') {
+      try {
+        const Notification = require('./models/Notification');
+        
+        const companyWelcomeNotifications = [
+          {
+            type: 'system',
+            title: "Welcome to MissionHub – Meet Your Next Great Hire 🤝",
+            message: "We are excited to help your company streamline its hiring process. Our platform isn't just a database; it's an intelligent talent ecosystem designed to match your specific requirements with the best professionals in the industry.",
+            priority: 'high',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "✨ Direct Talent Access",
+            message: "Skip the endless searching. Our system houses a pool of verified talent and employees whose skills are mapped to meet modern company standards.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "🤖 AI-Powered Shortlisting",
+            message: "Our AI works as your first-round recruiter. It analyzes your job postings and instantly notifies you when it finds a candidate whose profile is a perfect match for your requirements.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "📊 Industry Insights",
+            message: "Stay informed with related content and data-driven insights. From salary trends to skill availability, we provide the context you need to make competitive offers.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "Your First Step: Set Up Your Company Profile 🏢",
+            message: "To find the perfect match, our AI needs to understand your company's mission and needs. A complete profile ensures that the highest-quality talent is attracted to your brand.\n\nTo get started:\n• Fill Your Company Profile: Add your mission, culture, and what makes your workplace unique\n• Post Your First Requirement: Be specific about the talents you are looking for\n• Enable AI Notifications: Get pinged the second a matching talent enters the system",
+            priority: 'high',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "Ready to build your dream team?",
+            message: "Set up your company profile now and let our AI find the perfect candidates for you!",
+            priority: 'normal',
+            senderType: 'system'
+          }
+        ];
+        
+        for (const notif of companyWelcomeNotifications) {
+          await Notification.create({
+            userId: user._id,
+            ...notif,
+            read: false
+          });
+        }
+        console.log('✅ Company welcome notifications created for:', user.email);
+      } catch (notifError) {
+        console.error('Failed to create company welcome notifications:', notifError.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Registration completed successfully',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: user.userType,
+        isVerified: true,
+        isActive: true,
+        emailVerified: true,
+        loginRestricted: false,
+        profile: user.profile || {}
+      }
+    });
+  } catch (error) {
+    console.error('Verify code error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Server error during verification' });
+  }
+});
 
 // Register user
 app.post('/api/auth/register', async (req, res) => {
@@ -974,15 +1195,12 @@ app.post('/api/auth/register', async (req, res) => {
       email: cleanEmail,
       password,
       userType,
-      profile: profile || {}
+      profile: profile || {},
+      isVerified: true, // Auto-verify all users (removed verification requirement)
+      emailVerified: true // Also set emailVerified field
     });
 
-    // Generate verification code
-    const verificationCode = generateVerificationCode();
-    verificationCodes.set(cleanEmail, {
-      code: verificationCode,
-      expiresAt: Date.now() + 10 * 60 * 1000 // 10 minutes
-    });
+    // Skip verification code generation - users are auto-verified
 
     // Get email transporter
     const emailTransporter = req.app.get('emailTransporter');
@@ -1045,19 +1263,30 @@ app.post('/api/auth/register', async (req, res) => {
       emailSent = false;
     }
 
+    // If user is a company, create a company profile
+    if (userType === 'company') {
+      await CompanyProfile.create({
+        userId: user._id,
+        companyName: name.trim(),
+        companyEmail: cleanEmail
+      });
+    }
+
+    // Generate token and auto-login
+    const token = user.getSignedJwtToken();
+
     res.status(201).json({
       success: true,
-      message: emailSent 
-        ? 'Registration successful. Please check your email for verification code.' 
-        : 'Registration successful, but email service is temporarily unavailable. Check console for verification code.',
-      emailSent,
-      verificationCode: emailSent ? undefined : verificationCode,
-      error: emailError,
+      message: 'Registration successful! You are now logged in.',
+      emailSent: true,
+      token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        userType: user.userType
+        userType: user.userType,
+        isVerified: true,
+        emailVerified: true
       }
     });
 
@@ -1147,12 +1376,7 @@ app.post('/api/auth/verify-email', async (req, res) => {
         email: user.email,
         userType: user.userType,
         isVerified: true,
-        personalInfo: user.personalInfo || {},
-        professionalInfo: user.professionalInfo || {},
-        privacySettings: user.privacySettings || {},
-        notificationPreferences: user.notificationPreferences || {},
-        profilePhoto: user.profilePhoto,
-        documents: user.documents || []
+        profile: user.profile
       }
     });
 
@@ -1168,9 +1392,11 @@ app.post('/api/auth/verify-email', async (req, res) => {
 // Login user
 app.post('/api/auth/login', async (req, res) => {
   try {
+    console.log('🔐 Login attempt:', req.body.email);
     const { email, password } = req.body;
 
     if (!email || !password) {
+      console.log('❌ Login failed: Missing credentials');
       return res.status(400).json({
         success: false,
         message: 'Please provide an email and password'
@@ -1183,31 +1409,183 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await User.findOne({ email: cleanEmail }).select('+password');
 
     if (!user) {
+      console.log('❌ Login failed: User not found');
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
+      });
+    }
+
+    // ⛔ CHECK LOGIN RESTRICTION - Block restricted users
+    console.log('Checking restriction for:', cleanEmail, '| loginRestricted:', user.loginRestricted);
+    if (user.loginRestricted === true) {
+      console.log('⛔ LOGIN BLOCKED - User is restricted:', user.email);
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been restricted. Please contact support at reneniyi@gmail.com for assistance.',
+        code: 'ACCOUNT_RESTRICTED',
+        restricted: true
+      });
+    }
+
+    // Check if user is active
+    if (user.isActive === false) {
+      console.log('❌ Login blocked - Account deactivated:', user.email);
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.'
       });
     }
 
     // Check password
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
+      console.log('❌ Login failed: Wrong password');
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
-    // Check if email is verified
+    // Auto-verify user if not verified
     if (!user.isVerified) {
-      return res.status(401).json({
-        success: false,
-        message: 'Please verify your email before logging in'
-      });
+      user.isVerified = true;
+      await user.save();
     }
-
+    
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+    
     // Generate token
     const token = user.getSignedJwtToken();
+    console.log('✅ Login success:', user.email, '| Type:', user.userType);
+
+    // Create welcome notifications for new users
+    if (user.userType === 'jobSeeker' && !user.lastLogin) {
+      try {
+        const Notification = require('./models/Notification');
+        
+        const welcomeNotifications = [
+          {
+            type: 'system',
+            title: "Welcome to MissionHub! 🚀",
+            message: "We are excited to help you bridge the gap between your unique talents and the world's leading companies. Our platform is more than just a job board—it is an AI-powered career agent designed to work for you 24/7.",
+            priority: 'high',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "🎯 How the System Works for You",
+            message: "Precision Talent Matching: We don't just look at job titles. Our system analyzes your specific skills and 'Company DNA' to ensure that every connection made is a perfect fit for both your career goals and the employer's culture.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "🤖 Your Personal AI Scout",
+            message: "You don't need to spend hours searching. Our built-in AI constantly monitors new opportunities. The moment a job is posted that matches your unique profile, the system notifies you instantly so you can be first in line.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "📈 Personalized Career Feed",
+            message: "Stay ahead of the curve with a custom dashboard. Beyond job alerts, you'll receive related content, industry trends, and professional insights tailored specifically to your expertise.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "Your First Step: Fill Your Profile 📝",
+            message: "To let the AI start hunting for you, we need to know who you are. Your profile is your Digital DNA—the more detail you provide, the more accurately our AI can advocate for you.\n\nClick 'Edit Profile' on your dashboard to:\n• Highlight your Talents: Add your core skills, certifications, and project history\n• Set your Preferences: Tell the AI exactly what kind of companies and roles you are looking for",
+            priority: 'high',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "Ready to find your next big move?",
+            message: "Complete your profile now and let our AI find the perfect opportunities for you!",
+            priority: 'normal',
+            senderType: 'system'
+          }
+        ];
+        
+        for (const notif of welcomeNotifications) {
+          await Notification.create({
+            userId: user._id,
+            ...notif,
+            read: false
+          });
+        }
+        console.log('✅ Welcome notifications created for new user:', user.email);
+      } catch (notifError) {
+        console.error('Failed to create welcome notifications:', notifError.message);
+      }
+    }
+
+    // Create welcome notifications for new company users
+    if (user.userType === 'company' && !user.lastLogin) {
+      try {
+        const Notification = require('./models/Notification');
+        
+        const companyWelcomeNotifications = [
+          {
+            type: 'system',
+            title: "Welcome to MissionHub – Meet Your Next Great Hire 🤝",
+            message: "We are excited to help your company streamline its hiring process. Our platform isn't just a database; it's an intelligent talent ecosystem designed to match your specific requirements with the best professionals in the industry.",
+            priority: 'high',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "✨ Direct Talent Access",
+            message: "Skip the endless searching. Our system houses a pool of verified talent and employees whose skills are mapped to meet modern company standards.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "🤖 AI-Powered Shortlisting",
+            message: "Our AI works as your first-round recruiter. It analyzes your job postings and instantly notifies you when it finds a candidate whose profile is a perfect match for your requirements.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "📊 Industry Insights",
+            message: "Stay informed with related content and data-driven insights. From salary trends to skill availability, we provide the context you need to make competitive offers.",
+            priority: 'normal',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "Your First Step: Set Up Your Company Profile 🏢",
+            message: "To find the perfect match, our AI needs to understand your company's mission and needs. A complete profile ensures that the highest-quality talent is attracted to your brand.\n\nTo get started:\n• Fill Your Company Profile: Add your mission, culture, and what makes your workplace unique\n• Post Your First Requirement: Be specific about the talents you are looking for\n• Enable AI Notifications: Get pinged the second a matching talent enters the system",
+            priority: 'high',
+            senderType: 'system'
+          },
+          {
+            type: 'system',
+            title: "Ready to build your dream team?",
+            message: "Set up your company profile now and let our AI find the perfect candidates for you!",
+            priority: 'normal',
+            senderType: 'system'
+          }
+        ];
+        
+        for (const notif of companyWelcomeNotifications) {
+          await Notification.create({
+            userId: user._id,
+            ...notif,
+            read: false
+          });
+        }
+        console.log('✅ Company welcome notifications created for:', user.email);
+      } catch (notifError) {
+        console.error('Failed to create company welcome notifications:', notifError.message);
+      }
+    }
 
     res.json({
       success: true,
@@ -1218,18 +1596,16 @@ app.post('/api/auth/login', async (req, res) => {
         name: user.name,
         email: user.email,
         userType: user.userType,
-        isVerified: true,
-        personalInfo: user.personalInfo || {},
-        professionalInfo: user.professionalInfo || {},
-        privacySettings: user.privacySettings || {},
-        notificationPreferences: user.notificationPreferences || {},
-        profilePhoto: user.profilePhoto,
-        documents: user.documents || []
+        isVerified: user.isVerified === true,
+        isActive: user.isActive === true,
+        emailVerified: user.emailVerified === true,
+        loginRestricted: user.loginRestricted || false,
+        profile: user.profile || {}
       }
     });
 
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('❌ Login error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error during login'
@@ -1336,7 +1712,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
-// Reset password (needed by frontend)
+// Reset password
 app.post('/api/auth/reset-password', async (req, res) => {
   try {
     const { email, verificationCode, newPassword } = req.body;
@@ -1386,184 +1762,239 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
+// Change password (authenticated user)
+app.post('/api/auth/change-password', protect, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 8 characters' });
+    }
+
+    // Check email verification
+    if (!req.user.emailVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Email verification required. Please verify your email address.'
+      });
+    }
+
+    // Find user with password
+    const user = await User.findById(req.user.id).select('+password');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Check if current password is correct
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ success: false, message: 'Server error during password change' });
+  }
+});
+
 // ========================
-// USER ROUTES - ENHANCED
+// USER ROUTES
 // ========================
 
 // Get current user profile
 app.get('/api/users/me', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const decoded = req.headers.authorization?.split(' ')[1] ? 
+      jwt.verify(req.headers.authorization.split(' ')[1], process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin') : null;
     
+    const userId = decoded?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+    
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ success: false, message: 'Database not connected' });
+    }
+    
+    const userDoc = await db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    
+    if (!userDoc) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    const profileData = userDoc.profile || {};
+    
+    // Return top-level name and email, plus profile object with all fields
     res.status(200).json({
       success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-        isVerified: user.isVerified,
-        personalInfo: user.personalInfo || {},
-        professionalInfo: user.professionalInfo || {},
-        privacySettings: user.privacySettings || {},
-        notificationPreferences: user.notificationPreferences || {},
-        profilePhoto: user.profilePhoto,
-        documents: user.documents || []
+      message: 'Profile retrieved successfully',
+      data: {
+        name: userDoc.name || '',
+        email: userDoc.email || '',
+        profile: {
+          name: userDoc.name || '',
+          email: userDoc.email || '',
+          phone: profileData.phone || '',
+          location: profileData.location || '',
+          title: profileData.title || '',
+          bio: profileData.bio || '',
+          skills: profileData.skills || [],
+          experience: profileData.experience || '',
+          education: profileData.education || '',
+          linkedin: profileData.linkedin || '',
+          github: profileData.github || '',
+          portfolio: profileData.portfolio || '',
+          resume: profileData.resume || null,
+          cv: profileData.cv || null,
+          documents: profileData.documents || []
+        }
       }
     });
   } catch (error) {
     console.error('Get user error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// Get user profile with all sections
-app.get('/api/users/profile', protect, async (req, res) => {
+// Update user profile - step by step
+app.put('/api/users/me', async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
     
-    res.status(200).json({
-      success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-        isVerified: user.isVerified,
-        personalInfo: user.personalInfo || {},
-        professionalInfo: user.professionalInfo || {},
-        privacySettings: user.privacySettings || {},
-        notificationPreferences: user.notificationPreferences || {},
-        profilePhoto: user.profilePhoto,
-        documents: user.documents || []
+    const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin');
+    const userId = decoded.id;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+    
+    const { step, name, email, profile } = req.body;
+    
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ success: false, message: 'Database not connected' });
+    }
+    
+    const updateObj = {};
+    
+    // Handle different steps
+    if (step === 'personal') {
+      // Step 1: Basic info (name, email)
+      if (name !== undefined && name !== null && name !== '') {
+        updateObj.name = name;
       }
-    });
-  } catch (error) {
-    console.error('Get user profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
-});
-
-// Update complete user profile - FIXED: Properly handle documents array
-app.put('/api/users/profile', protect, async (req, res) => {
-  try {
-    const { personalInfo, professionalInfo, privacySettings, notificationPreferences, documents } = req.body;
-    
-    const updateData = {};
-    
-    if (personalInfo) updateData.personalInfo = personalInfo;
-    if (professionalInfo) updateData.professionalInfo = professionalInfo;
-    if (privacySettings) updateData.privacySettings = privacySettings;
-    if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
-    
-    // FIXED: Handle documents array properly
-    if (documents) {
-      // If documents is a string, parse it first
-      let parsedDocuments = documents;
-      if (typeof documents === 'string') {
-        try {
-          parsedDocuments = JSON.parse(documents);
-        } catch (e) {
-          console.error('Error parsing documents:', e);
-          return res.status(400).json({
-            success: false,
-            message: 'Invalid documents format'
-          });
+      if (email !== undefined && email !== null && email !== '') {
+        updateObj.email = email.toLowerCase().trim();
+      }
+    }
+    else if (step === 'contact') {
+      // Step 2: Contact details
+      if (profile && profile.phone !== undefined) updateObj['profile.phone'] = profile.phone || '';
+      if (profile && profile.location !== undefined) updateObj['profile.location'] = profile.location || '';
+    }
+    else if (step === 'professional') {
+      // Step 3: Professional info
+      if (profile) {
+        if (profile.title !== undefined) updateObj['profile.title'] = profile.title || '';
+        if (profile.bio !== undefined) updateObj['profile.bio'] = profile.bio || '';
+        if (profile.experience !== undefined) updateObj['profile.experience'] = profile.experience || '';
+        if (profile.education !== undefined) updateObj['profile.education'] = profile.education || '';
+        
+        // Skills as array
+        if (profile.skills !== undefined) {
+          if (typeof profile.skills === 'string') {
+            updateObj['profile.skills'] = profile.skills.split(',').map(s => s.trim()).filter(Boolean);
+          } else if (Array.isArray(profile.skills)) {
+            updateObj['profile.skills'] = profile.skills;
+          }
         }
       }
-      
-      // Validate that it's an array
-      if (!Array.isArray(parsedDocuments)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Documents must be an array'
-        });
+    }
+    else if (step === 'links') {
+      // Step 4: Links
+      if (profile) {
+        if (profile.linkedin !== undefined) updateObj['profile.linkedin'] = profile.linkedin || '';
+        if (profile.github !== undefined) updateObj['profile.github'] = profile.github || '';
+        if (profile.portfolio !== undefined) updateObj['profile.portfolio'] = profile.portfolio || '';
       }
+    }
+    else if (step === 'documents') {
+      // Step 5: Documents (resume, cv, documents)
+      if (profile) {
+        if (profile.resume !== undefined) updateObj['profile.resume'] = profile.resume;
+        if (profile.cv !== undefined) updateObj['profile.cv'] = profile.cv;
+        if (profile.documents !== undefined) updateObj['profile.documents'] = profile.documents;
+      }
+    }
+    else {
+      // No step specified - update everything
+      if (name !== undefined && name !== null && name !== '') updateObj.name = name;
+      if (email !== undefined && email !== null && email !== '') updateObj.email = email.toLowerCase().trim();
       
-      updateData.documents = parsedDocuments;
+      if (profile) {
+        if (profile.phone !== undefined) updateObj['profile.phone'] = profile.phone || '';
+        if (profile.location !== undefined) updateObj['profile.location'] = profile.location || '';
+        if (profile.title !== undefined) updateObj['profile.title'] = profile.title || '';
+        if (profile.bio !== undefined) updateObj['profile.bio'] = profile.bio || '';
+        if (profile.experience !== undefined) updateObj['profile.experience'] = profile.experience || '';
+        if (profile.education !== undefined) updateObj['profile.education'] = profile.education || '';
+        if (profile.linkedin !== undefined) updateObj['profile.linkedin'] = profile.linkedin || '';
+        if (profile.github !== undefined) updateObj['profile.github'] = profile.github || '';
+        if (profile.portfolio !== undefined) updateObj['profile.portfolio'] = profile.portfolio || '';
+        
+        if (profile.skills !== undefined) {
+          if (typeof profile.skills === 'string') {
+            updateObj['profile.skills'] = profile.skills.split(',').map(s => s.trim()).filter(Boolean);
+          } else {
+            updateObj['profile.skills'] = profile.skills;
+          }
+        }
+        
+        if (profile.resume !== undefined) updateObj['profile.resume'] = profile.resume;
+        if (profile.cv !== undefined) updateObj['profile.cv'] = profile.cv;
+        if (profile.documents !== undefined) updateObj['profile.documents'] = profile.documents;
+      }
     }
     
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { $set: updateData },
-      { new: true, runValidators: true }
+    console.log('Step:', step || 'all');
+    console.log('Update fields:', JSON.stringify(updateObj));
+    
+    if (Object.keys(updateObj).length === 0) {
+      return res.status(400).json({ success: false, message: 'No fields to update' });
+    }
+    
+    await db.collection('users').updateOne(
+      { _id: new mongoose.Types.ObjectId(userId) },
+      { $set: updateObj }
     );
-
+    
+    const userDoc = await db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    
+    console.log('Updated successfully');
+    
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-        isVerified: user.isVerified,
-        personalInfo: user.personalInfo || {},
-        professionalInfo: user.professionalInfo || {},
-        privacySettings: user.privacySettings || {},
-        notificationPreferences: user.notificationPreferences || {},
-        profilePhoto: user.profilePhoto,
-        documents: user.documents || []
-      }
+      data: userDoc
     });
   } catch (error) {
     console.error('Update profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during profile update'
-    });
-  }
-});
-
-// Update user profile
-app.put('/api/users/me', protect, async (req, res) => {
-  try {
-    const { name, profile } = req.body;
-    
-    const updateData = {};
-    if (name) updateData.name = name;
-    
-    if (profile) {
-      // Handle profile update with backward compatibility
-      const profileUpdate = { ...req.user.profile, ...profile };
-      updateData.profile = profileUpdate;
-    }
-
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Profile updated successfully',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-        isVerified: user.isVerified,
-        personalInfo: user.personalInfo || {},
-        professionalInfo: user.professionalInfo || {},
-        privacySettings: user.privacySettings || {},
-        notificationPreferences: user.notificationPreferences || {},
-        profilePhoto: user.profilePhoto,
-        documents: user.documents || []
-      }
-    });
-  } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during profile update'
-    });
+    res.status(500).json({ success: false, message: 'Server error during profile update' });
   }
 });
 
@@ -1577,7 +2008,9 @@ app.put('/api/users/profile/:field', protect, async (req, res) => {
     const allowedFields = [
       'name', 'phone', 'location', 'bio', 'skills', 'experience', 
       'education', 'preferredJobType', 'salaryExpectation', 'linkedin',
-      'github', 'portfolio', 'profilePhoto', 'resume'
+      'github', 'portfolio', 'profilePhoto', 'resume', 'companyName',
+      'companyWebsite', 'companySize', 'foundedYear', 'headquarters',
+      'description', 'logo'
     ];
     
     if (!allowedFields.includes(field)) {
@@ -1591,20 +2024,13 @@ app.put('/api/users/profile/:field', protect, async (req, res) => {
     const updateData = {};
     if (field === 'name') {
       updateData.name = value;
-    } else if (field === 'resume') {
-      // Special handling for resume field
-      if (value && typeof value === 'object') {
-        updateData[`profile.${field}`] = JSON.stringify(value);
-      } else {
-        updateData[`profile.${field}`] = value;
-      }
     } else {
       updateData[`profile.${field}`] = value;
     }
     
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { $set: updateData },
+      updateData,
       { new: true, runValidators: true }
     );
 
@@ -1617,12 +2043,7 @@ app.put('/api/users/profile/:field', protect, async (req, res) => {
         email: user.email,
         userType: user.userType,
         isVerified: user.isVerified,
-        personalInfo: user.personalInfo || {},
-        professionalInfo: user.professionalInfo || {},
-        privacySettings: user.privacySettings || {},
-        notificationPreferences: user.notificationPreferences || {},
-        profilePhoto: user.profilePhoto,
-        documents: user.documents || []
+        profile: user.profile
       }
     });
   } catch (error) {
@@ -1638,42 +2059,37 @@ app.put('/api/users/profile/:field', protect, async (req, res) => {
 // JOB ROUTES
 // ========================
 
-// Get all jobs
-app.get('/api/jobs', async (req, res) => {
-  try {
-    const jobs = await Job.find().populate('postedBy', 'name email').sort({ createdAt: -1 });
-    
-    res.status(200).json({
-      success: true,
-      count: jobs.length,
-      jobs
-    });
-  } catch (error) {
-    console.error('Get jobs error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching jobs'
-    });
-  }
-});
+// Get all jobs - handled by routes/jobs.js
 
 // Create job
-app.post('/api/jobs', protect, async (req, res) => {
+app.post('/api/jobs', protect, companyOnly, async (req, res) => {
   try {
-    // Only companies can post jobs
-    if (req.user.userType !== 'company') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only company accounts can post jobs'
-      });
-    }
-
     const job = await Job.create({
       ...req.body,
-      postedBy: req.user.id
+      postedBy: req.user.id,
+      company: req.user.profile.companyName || req.body.company
     });
 
-    const populatedJob = await Job.findById(job._id).populate('postedBy', 'name email');
+    // Update company stats
+    await CompanyProfile.findOneAndUpdate(
+      { userId: req.user.id },
+      { 
+        $inc: { 
+          'stats.totalJobsPosted': 1,
+          'stats.activeJobs': 1 
+        } 
+      }
+    );
+
+    // Create activity
+    await createCompanyActivity(
+      req.user.id,
+      'job_posted',
+      `Posted new job: ${job.title}`,
+      { jobId: job._id, jobTitle: job.title }
+    );
+
+    const populatedJob = await Job.findById(job._id).populate('postedBy', 'name email profile').lean();
 
     res.status(201).json({
       success: true,
@@ -1689,10 +2105,34 @@ app.post('/api/jobs', protect, async (req, res) => {
   }
 });
 
-// Get user's posted jobs
+// Get jobs posted by company
+app.get('/api/jobs/company', protect, companyOnly, async (req, res) => {
+  try {
+    const jobs = await Job.find({ postedBy: req.user.id })
+      .populate('postedBy', 'name email profile')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    res.status(200).json({
+      success: true,
+      data: jobs
+    });
+  } catch (error) {
+    console.error('Get company jobs error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching company jobs'
+    });
+  }
+});
+
+// Get user's posted jobs (alias for /jobs/company for backward compatibility)
 app.get('/api/jobs/my-jobs', protect, async (req, res) => {
   try {
-    const jobs = await Job.find({ postedBy: req.user.id }).populate('postedBy', 'name email').sort({ createdAt: -1 });
+    const jobs = await Job.find({ postedBy: req.user.id })
+      .populate('postedBy', 'name email')
+      .sort({ createdAt: -1 })
+      .lean();
     
     res.status(200).json({
       success: true,
@@ -1719,7 +2159,7 @@ app.get('/api/jobs/:id', async (req, res) => {
       });
     }
 
-    const job = await Job.findById(req.params.id).populate('postedBy', 'name email');
+    const job = await Job.findById(req.params.id).populate('postedBy', 'name email profile').lean();
     
     if (!job) {
       return res.status(404).json({
@@ -1742,7 +2182,7 @@ app.get('/api/jobs/:id', async (req, res) => {
 });
 
 // Update job
-app.put('/api/jobs/:id', protect, async (req, res) => {
+app.put('/api/jobs/:id', protect, companyOnly, async (req, res) => {
   try {
     // Validate if the ID is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -1752,7 +2192,7 @@ app.put('/api/jobs/:id', protect, async (req, res) => {
       });
     }
 
-    let job = await Job.findById(req.params.id);
+    let job = await Job.findById(req.params.id).lean();
 
     if (!job) {
       return res.status(404).json({
@@ -1761,8 +2201,8 @@ app.put('/api/jobs/:id', protect, async (req, res) => {
       });
     }
 
-    // Check if user owns the job
-    if (job.postedBy.toString() !== req.user.id) {
+    // Check if user owns the job (allow if no owner set)
+    if (job.postedBy && job.postedBy.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this job'
@@ -1771,8 +2211,16 @@ app.put('/api/jobs/:id', protect, async (req, res) => {
 
     job = await Job.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
-      runValidators: true
-    }).populate('postedBy', 'name email');
+      runValidators: false
+    }).populate('postedBy', 'name email').lean();
+
+    // Create activity
+    await createCompanyActivity(
+      req.user.id,
+      'job_updated',
+      `Updated job: ${job.title}`,
+      { jobId: job._id, jobTitle: job.title }
+    );
 
     res.status(200).json({
       success: true,
@@ -1789,7 +2237,7 @@ app.put('/api/jobs/:id', protect, async (req, res) => {
 });
 
 // Delete job
-app.delete('/api/jobs/:id', protect, async (req, res) => {
+app.delete('/api/jobs/:id', protect, companyOnly, async (req, res) => {
   try {
     // Validate if the ID is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -1799,7 +2247,7 @@ app.delete('/api/jobs/:id', protect, async (req, res) => {
       });
     }
 
-    const job = await Job.findById(req.params.id);
+    const job = await Job.findById(req.params.id).lean();
 
     if (!job) {
       return res.status(404).json({
@@ -1808,8 +2256,8 @@ app.delete('/api/jobs/:id', protect, async (req, res) => {
       });
     }
 
-    // Check if user owns the job
-    if (job.postedBy.toString() !== req.user.id) {
+    // Check if user owns the job (allow if no owner set)
+    if (job.postedBy && job.postedBy.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete this job'
@@ -1825,6 +2273,20 @@ app.delete('/api/jobs/:id', protect, async (req, res) => {
     }
 
     await Job.findByIdAndDelete(req.params.id);
+
+    // Update company stats
+    await CompanyProfile.findOneAndUpdate(
+      { userId: req.user.id },
+      { $inc: { 'stats.activeJobs': -1 } }
+    );
+
+    // Create activity
+    await createCompanyActivity(
+      req.user.id,
+      'job_closed',
+      `Closed job: ${job.title}`,
+      { jobId: job._id, jobTitle: job.title }
+    );
 
     res.status(200).json({
       success: true,
@@ -1870,51 +2332,66 @@ app.post('/api/upload', protect, uploadImage.single('image'), async (req, res) =
   }
 });
 
-// Upload profile photo
-app.post('/api/upload/profile-photo', protect, uploadImage.single('image'), async (req, res) => {
+// ========================
+// COMPANY LOGO UPLOAD ROUTE
+// ========================
+
+// Upload company logo endpoint
+app.post('/api/upload/logo', protect, companyOnly, uploadLogo.single('logo'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'No image file provided'
+        message: 'No logo file provided'
       });
     }
 
-    // Update user profile with photo URL
-    const user = await User.findByIdAndUpdate(
+    // Return the logo URL
+    const logoUrl = `/uploads/logos/${req.file.filename}`;
+
+    // Update user profile with logo
+    await User.findByIdAndUpdate(
       req.user.id,
-      { 
-        $set: { 
-          profilePhoto: `/uploads/${req.file.filename}`
-        } 
-      },
-      { 
-        new: true, 
-        runValidators: true 
-      }
+      { 'profile.logo': logoUrl }
+    );
+
+    // Update company profile with logo
+    await CompanyProfile.findOneAndUpdate(
+      { userId: req.user.id },
+      { logo: logoUrl }
     );
 
     res.status(200).json({
       success: true,
-      message: 'Profile photo uploaded successfully',
-      imageUrl: `/uploads/${req.file.filename}`
+      message: 'Logo uploaded successfully',
+      logoUrl
     });
   } catch (error) {
-    console.error('Profile photo upload error:', error);
+    console.error('Logo upload error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while uploading profile photo'
+      message: 'Server error while uploading logo'
     });
   }
 });
 
 // ========================
-// DOCUMENT UPLOAD ROUTES - ENHANCED
+// RESUME UPLOAD ROUTE
 // ========================
 
-// Upload resume endpoint - FIXED
-app.post('/api/upload/resume', protect, uploadDocument.single('resume'), async (req, res) => {
+// Upload resume endpoint
+app.post('/api/upload/resume', protect, uploadResume.single('resume'), async (req, res) => {
   try {
+    const decoded = req.headers.authorization?.split(' ')[1] ? 
+      jwt.verify(req.headers.authorization.split(' ')[1], process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin') : null;
+    
+    const userId = decoded?.id;
+    console.log('Resume upload - userId:', userId);
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+    
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -1922,7 +2399,6 @@ app.post('/api/upload/resume', protect, uploadDocument.single('resume'), async (
       });
     }
 
-    // Create resume data object
     const resumeData = {
       name: req.file.originalname,
       url: `/uploads/resumes/${req.file.filename}`,
@@ -1930,32 +2406,21 @@ app.post('/api/upload/resume', protect, uploadDocument.single('resume'), async (
       size: (req.file.size / 1024 / 1024).toFixed(2) + ' MB',
       type: req.file.mimetype
     };
-
-    // Add document to user's documents array
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { 
-        $push: { 
-          documents: resumeData
-        } 
-      },
-      { 
-        new: true, 
-        runValidators: true 
-      }
-    );
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+    
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ success: false, message: 'Database not connected' });
     }
+    
+    await db.collection('users').updateOne(
+      { _id: new mongoose.Types.ObjectId(userId) },
+      { $set: { 'profile.resume': resumeData } }
+    );
 
     res.status(200).json({
       success: true,
       message: 'Resume uploaded successfully',
-      resume: resumeData
+      data: { resume: resumeData }
     });
   } catch (error) {
     console.error('Resume upload error:', error);
@@ -1966,9 +2431,62 @@ app.post('/api/upload/resume', protect, uploadDocument.single('resume'), async (
   }
 });
 
-// Upload document
-app.post('/api/upload/document', protect, uploadDocument.single('document'), async (req, res) => {
+// Upload CV endpoint
+app.post('/api/upload/cv', protect, uploadResume.single('cv'), async (req, res) => {
   try {
+    const decoded = req.headers.authorization?.split(' ')[1] ? 
+      jwt.verify(req.headers.authorization.split(' ')[1], process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin') : null;
+    
+    const userId = decoded?.id;
+    console.log('CV upload - userId:', userId);
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No CV file provided'
+      });
+    }
+
+    const cvData = {
+      name: req.file.originalname,
+      url: `/uploads/resumes/${req.file.filename}`,
+      uploadDate: new Date(),
+      size: (req.file.size / 1024 / 1024).toFixed(2) + ' MB',
+      type: req.file.mimetype
+    };
+    
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ success: false, message: 'Database not connected' });
+    }
+    
+    await db.collection('users').updateOne(
+      { _id: new mongoose.Types.ObjectId(userId) },
+      { $set: { 'profile.cv': cvData } }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'CV uploaded successfully',
+      data: { cv: cvData }
+    });
+  } catch (error) {
+    console.error('CV upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while uploading CV'
+    });
+  }
+});
+
+// Upload document endpoint
+app.post('/api/upload/document', protect, uploadResume.single('document'), async (req, res) => {
+  try {
+    console.log('Document upload called for user:', req.user?.id);
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -1976,28 +2494,26 @@ app.post('/api/upload/document', protect, uploadDocument.single('document'), asy
       });
     }
 
-    // Create document data object
+    const { category } = req.body;
+    
     const documentData = {
+      _id: new mongoose.Types.ObjectId(),
       name: req.file.originalname,
       url: `/uploads/resumes/${req.file.filename}`,
       uploadDate: new Date(),
       size: (req.file.size / 1024 / 1024).toFixed(2) + ' MB',
       type: req.file.mimetype,
-      isPrimary: false
+      category: category || 'other'
     };
-
-    // Add document to user's documents array
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { 
-        $push: { 
-          documents: documentData
-        } 
-      },
-      { 
-        new: true, 
-        runValidators: true 
-      }
+    
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ success: false, message: 'Database not connected' });
+    }
+    
+    await db.collection('users').updateOne(
+      { _id: new mongoose.Types.ObjectId(req.user.id) },
+      { $push: { 'profile.documents': documentData } }
     );
 
     res.status(200).json({
@@ -2014,46 +2530,56 @@ app.post('/api/upload/document', protect, uploadDocument.single('document'), asy
   }
 });
 
-// Delete document
-app.delete('/api/documents/:documentId', protect, async (req, res) => {
+// Get all documents endpoint
+app.get('/api/user/documents', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('profile.resume profile.cv profile.documents');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      documents: {
+        resume: user.profile?.resume || null,
+        cv: user.profile?.cv || null,
+        additionalDocuments: user.profile?.documents || []
+      }
+    });
+  } catch (error) {
+    console.error('Get documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching documents'
+    });
+  }
+});
+
+// Delete document endpoint
+app.delete('/api/user/documents/:documentId', protect, async (req, res) => {
   try {
     const { documentId } = req.params;
+    const { type } = req.query;
     
-    // Find user and remove document
-    const user = await User.findById(req.user.id);
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ success: false, message: 'Database not connected' });
     }
-    
-    // Find document in user's documents array
-    const documentIndex = user.documents.findIndex(doc => doc._id.toString() === documentId);
-    
-    if (documentIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'Document not found'
-      });
+
+    let updateQuery;
+    if (type === 'resume') {
+      updateQuery = { $unset: { 'profile.resume': '' } };
+    } else if (type === 'cv') {
+      updateQuery = { $unset: { 'profile.cv': '' } };
+    } else {
+      updateQuery = { $pull: { 'profile.documents': { _id: new mongoose.Types.ObjectId(documentId) } } };
     }
-    
-    // Get document URL for file deletion
-    const documentUrl = user.documents[documentIndex].url;
-    
-    // Remove document from array
-    user.documents.splice(documentIndex, 1);
-    await user.save();
-    
-    // Delete file from filesystem
-    if (documentUrl) {
-      const filePath = path.join(__dirname, documentUrl);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    }
-    
+
+    await db.collection('users').updateOne(
+      { _id: new mongoose.Types.ObjectId(req.user.id) },
+      updateQuery
+    );
+
     res.status(200).json({
       success: true,
       message: 'Document deleted successfully'
@@ -2067,54 +2593,499 @@ app.delete('/api/documents/:documentId', protect, async (req, res) => {
   }
 });
 
-// Set primary document
-app.put('/api/documents/:documentId/set-primary', protect, async (req, res) => {
+// Update document endpoint
+app.put('/api/user/documents/:documentId', protect, async (req, res) => {
   try {
     const { documentId } = req.params;
+    const { name, category } = req.body;
     
-    // Find user and update documents
-    const user = await User.findById(req.user.id);
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+    const db = mongoose.connection.db;
+    if (!db) {
+      return res.status(500).json({ success: false, message: 'Database not connected' });
     }
-    
-    // Reset all documents to non-primary
-    user.documents.forEach(doc => {
-      doc.isPrimary = false;
-    });
-    
-    // Set specified document as primary
-    const document = user.documents.find(doc => doc._id.toString() === documentId);
-    
-    if (!document) {
-      return res.status(404).json({
-        success: false,
-        message: 'Document not found'
-      });
-    }
-    
-    document.isPrimary = true;
-    await user.save();
-    
+
+    await db.collection('users').updateOne(
+      { _id: new mongoose.Types.ObjectId(req.user.id), 'profile.documents._id': new mongoose.Types.ObjectId(documentId) },
+      { $set: { 'profile.documents.$.name': name, 'profile.documents.$.category': category } }
+    );
+
     res.status(200).json({
       success: true,
-      message: 'Primary document set successfully'
+      message: 'Document updated successfully'
     });
   } catch (error) {
-    console.error('Set primary document error:', error);
+    console.error('Update document error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while setting primary document'
+      message: 'Server error while updating document'
     });
   }
 });
 
 // ========================
-// APPLICATION ROUTES - ENHANCED
+// COMPANY PROFILE ROUTES
+// ========================
+// NOTE: /api/company/profile routes are now handled by routes/company.js
+// See line ~742: app.use('/api/company', companyRoutes);
+
+// ========================
+// COMPANY DASHBOARD ROUTES (Frontend Compatible)
+// ========================
+
+// Get company dashboard stats (mapped from /api/company/stats)
+app.get('/api/company/dashboard/stats', protect, companyOnly, async (req, res) => {
+  try {
+    const companyId = req.user.id;
+
+    // Get company profile
+    const companyProfile = await CompanyProfile.findOne({ userId: companyId });
+
+    // Get jobs count
+    const totalJobs = await Job.countDocuments({ postedBy: companyId });
+    const activeJobs = await Job.countDocuments({ postedBy: companyId, status: 'active' });
+
+    // Get applications count
+    const jobs = await Job.find({ postedBy: companyId }).select('_id').lean();
+    const jobIds = jobs.map(job => job._id);
+    
+    const totalApplications = await Application.countDocuments({ jobId: { $in: jobIds } });
+    const pendingApplications = await Application.countDocuments({ 
+      jobId: { $in: jobIds }, 
+      status: 'pending' 
+    });
+
+    // Get views count (simulated for now)
+    const totalViews = Math.floor(Math.random() * 1000) + 500;
+
+    // Get recent activities
+    const recentActivities = await CompanyActivity.find({ companyId })
+      .sort({ timestamp: -1 })
+      .limit(10)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        profile: companyProfile || {},
+        jobs: {
+          total: totalJobs,
+          active: activeJobs
+        },
+        applications: {
+          total: totalApplications,
+          pending: pendingApplications
+        },
+        views: totalViews,
+        recentActivities
+      }
+    });
+  } catch (error) {
+    console.error('Get company dashboard stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching company stats'
+    });
+  }
+});
+
+// Get company jobs (mapped for frontend compatibility)
+app.get('/api/company/jobs', protect, companyOnly, async (req, res) => {
+  try {
+    const jobs = await Job.find({ postedBy: req.user.id })
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    res.status(200).json({
+      success: true,
+      data: jobs
+    });
+  } catch (error) {
+    console.error('Get company jobs error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching jobs'
+    });
+  }
+});
+
+// Get company applications (mapped for frontend compatibility)
+app.get('/api/company/applications', protect, companyOnly, async (req, res) => {
+  try {
+    const jobs = await Job.find({ postedBy: req.user.id }).select('_id').lean();
+    const jobIds = jobs.map(job => job._id);
+    
+    const applications = await Application.find({ jobId: { $in: jobIds } })
+      .populate('userId', 'name email')
+      .populate('jobId', 'title company')
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    res.status(200).json({
+      success: true,
+      data: applications
+    });
+  } catch (error) {
+    console.error('Get company applications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching applications'
+    });
+  }
+});
+
+// Get company exams
+app.get('/api/company/exams', protect, companyOnly, async (req, res) => {
+  try {
+    const exams = await Exam.find({ createdBy: req.user.id })
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    res.status(200).json({
+      success: true,
+      data: exams
+    });
+  } catch (error) {
+    console.error('Get company exams error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching exams'
+    });
+  }
+});
+
+// Get company notifications
+app.get('/api/company/notifications', protect, companyOnly, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+    
+    res.status(200).json({
+      success: true,
+      data: notifications
+    });
+  } catch (error) {
+    console.error('Get company notifications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching notifications'
+    });
+  }
+});
+
+// Get company advertisements
+app.get('/api/company/advertisements', protect, companyOnly, async (req, res) => {
+  try {
+    const ads = await Advertisement.find({ companyId: req.user.id })
+      .sort({ createdAt: -1 })
+      .lean();
+    
+    res.status(200).json({
+      success: true,
+      data: ads
+    });
+  } catch (error) {
+    console.error('Get company advertisements error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching advertisements'
+    });
+  }
+});
+
+// Get company activities (mapped to /api/company/activities)
+app.get('/api/company/activities', protect, companyOnly, async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    
+    const activities = await CompanyActivity.find({ companyId: req.user.id })
+      .sort({ timestamp: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .lean();
+    
+    const total = await CompanyActivity.countDocuments({ companyId: req.user.id });
+
+    res.status(200).json({
+      success: true,
+      data: activities,
+      count: activities.length,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (error) {
+    console.error('Get company activities error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching activities'
+    });
+  }
+});
+
+// ========================
+// COMPANY STATS ROUTES (Legacy)
+// ========================
+
+// Get company dashboard stats
+app.get('/api/company/stats', protect, companyOnly, async (req, res) => {
+  try {
+    const companyId = req.user.id;
+
+    // Get company profile
+    const companyProfile = await CompanyProfile.findOne({ userId: companyId });
+
+    // Get jobs count
+    const totalJobs = await Job.countDocuments({ postedBy: companyId });
+    const activeJobs = await Job.countDocuments({ postedBy: companyId, status: 'active' });
+
+    // Get applications count
+    const jobs = await Job.find({ postedBy: companyId }).select('_id');
+    const jobIds = jobs.map(job => job._id);
+    
+    const totalApplications = await Application.countDocuments({ jobId: { $in: jobIds } });
+    const pendingApplications = await Application.countDocuments({ 
+      jobId: { $in: jobIds }, 
+      status: 'pending' 
+    });
+
+    // Get views count (simulated for now)
+    const totalViews = Math.floor(Math.random() * 1000) + 500;
+
+    // Get recent activities
+    const recentActivities = await CompanyActivity.find({ companyId })
+      .sort({ timestamp: -1 })
+      .limit(10);
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        profile: companyProfile || {},
+        jobs: {
+          total: totalJobs,
+          active: activeJobs
+        },
+        applications: {
+          total: totalApplications,
+          pending: pendingApplications
+        },
+        views: totalViews,
+        recentActivities
+      }
+    });
+  } catch (error) {
+    console.error('Get company stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching company stats'
+    });
+  }
+});
+
+// ========================
+// COMPANY ACTIVITIES ROUTES
+// ========================
+
+// Get company activities
+app.get('/api/activities/company', protect, companyOnly, async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    
+    const activities = await CompanyActivity.find({ companyId: req.user.id })
+      .sort({ timestamp: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .lean();
+    
+    const total = await CompanyActivity.countDocuments({ companyId: req.user.id });
+
+    res.status(200).json({
+      success: true,
+      count: activities.length,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      activities
+    });
+  } catch (error) {
+    console.error('Get company activities error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching activities'
+    });
+  }
+});
+
+// ========================
+// TALENT POOL ROUTES
+// ========================
+
+// Get talent pool
+app.get('/api/talent-pool/company', protect, companyOnly, async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status, search } = req.query;
+    
+    const filter = { companyId: req.user.id };
+    if (status) filter.status = status;
+    
+    let talentPool = await TalentPool.find(filter)
+      .populate('candidateId', 'name email profile')
+      .populate('jobId', 'title')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+    
+    const total = await TalentPool.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      count: talentPool.length,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      talentPool
+    });
+  } catch (error) {
+    console.error('Get talent pool error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching talent pool'
+    });
+  }
+});
+
+// Add candidate to talent pool
+app.post('/api/talent-pool', protect, companyOnly, async (req, res) => {
+  try {
+    const { candidateId, jobId, source, notes } = req.body;
+    
+    if (!candidateId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate ID is required'
+      });
+    }
+
+    // Check if candidate exists
+    const candidate = await User.findById(candidateId);
+    if (!candidate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found'
+      });
+    }
+
+    // Check if already in talent pool
+    const existing = await TalentPool.findOne({
+      companyId: req.user.id,
+      candidateId
+    });
+
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate already in talent pool'
+      });
+    }
+
+    const talentPoolEntry = await TalentPool.create({
+      companyId: req.user.id,
+      candidateId,
+      jobId,
+      source: source || 'manual',
+      notes
+    });
+
+    const populatedEntry = await TalentPool.findById(talentPoolEntry._id)
+      .populate('candidateId', 'name email profile')
+      .populate('jobId', 'title');
+
+    res.status(201).json({
+      success: true,
+      message: 'Candidate added to talent pool',
+      talentPool: populatedEntry
+    });
+  } catch (error) {
+    console.error('Add to talent pool error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while adding to talent pool'
+    });
+  }
+});
+
+// Update talent pool entry
+app.put('/api/talent-pool/:id', protect, companyOnly, async (req, res) => {
+  try {
+    const { status, notes, rating, tags, nextFollowUp } = req.body;
+    
+    const talentPoolEntry = await TalentPool.findOneAndUpdate(
+      { _id: req.params.id, companyId: req.user.id },
+      { status, notes, rating, tags, nextFollowUp },
+      { new: true, runValidators: true }
+    );
+
+    if (!talentPoolEntry) {
+      return res.status(404).json({
+        success: false,
+        message: 'Talent pool entry not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Talent pool entry updated',
+      talentPool: talentPoolEntry
+    });
+  } catch (error) {
+    console.error('Update talent pool error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating talent pool'
+    });
+  }
+});
+
+// Delete talent pool entry
+app.delete('/api/talent-pool/:id', protect, companyOnly, async (req, res) => {
+  try {
+    const talentPoolEntry = await TalentPool.findOneAndDelete({
+      _id: req.params.id,
+      companyId: req.user.id
+    });
+
+    if (!talentPoolEntry) {
+      return res.status(404).json({
+        success: false,
+        message: 'Talent pool entry not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Candidate removed from talent pool'
+    });
+  } catch (error) {
+    console.error('Delete talent pool error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while removing from talent pool'
+    });
+  }
+});
+
+// NOTE: Application routes are now handled by the router at /api/applications
+// See backend/routes/applications.js for the complete implementation
+// Including: POST /api/applications, GET /api/applications/my-applications, 
+//           GET /api/applications/company, GET /api/applications/for-my-jobs,
+//           GET /api/applications/:id, PUT /api/applications/:id/status,
+//           DELETE /api/applications/:id
+
+// ========================
+// INTERVIEW ROUTES
+// ========================
+// APPLICATION ROUTES
 // ========================
 
 // Apply for job
@@ -2130,7 +3101,7 @@ app.post('/api/applications', protect, async (req, res) => {
     }
 
     // Check if job exists
-    const job = await Job.findById(jobId);
+    const job = await Job.findById(jobId).lean();
     if (!job) {
       return res.status(404).json({
         success: false,
@@ -2153,12 +3124,8 @@ app.post('/api/applications', protect, async (req, res) => {
 
     // Get user's resume from profile if not provided
     let resumeData = resume;
-    if (!resumeData && req.user.documents && req.user.documents.length > 0) {
-      // Find primary document or first document
-      const primaryDoc = req.user.documents.find(doc => doc.isPrimary) || req.user.documents[0];
-      if (primaryDoc) {
-        resumeData = primaryDoc;
-      }
+    if (!resumeData && req.user.profile && req.user.profile.resume) {
+      resumeData = req.user.profile.resume;
     }
 
     // Create application
@@ -2171,11 +3138,18 @@ app.post('/api/applications', protect, async (req, res) => {
       applicantEmail: req.user.email,
       coverLetter,
       resume: resumeData,
-      answers
+      answers,
+      companyId: job.postedBy
     });
 
     // Increment applicant count
     await Job.findByIdAndUpdate(jobId, { $inc: { applicants: 1 } });
+
+    // Update company stats
+    await CompanyProfile.findOneAndUpdate(
+      { userId: job.postedBy },
+      { $inc: { 'stats.totalApplications': 1 } }
+    );
 
     // Create notification for the job poster
     await createNotification(
@@ -2189,8 +3163,31 @@ app.post('/api/applications', protect, async (req, res) => {
           title: job.title,
           company: job.company,
           status: 'pending'
-        }
+        },
+        relatedId: application._id,
+        relatedType: 'application'
       }
+    );
+
+    // Create activity for the company
+    await createCompanyActivity(
+      job.postedBy,
+      'application_reviewed',
+      `New application received for ${job.title}`,
+      { jobId, applicationId: application._id }
+    );
+
+    // Add to talent pool automatically
+    await TalentPool.findOneAndUpdate(
+      { companyId: job.postedBy, candidateId: req.user.id },
+      {
+        companyId: job.postedBy,
+        candidateId: req.user.id,
+        jobId,
+        source: 'application',
+        status: 'new'
+      },
+      { upsert: true, new: true }
     );
 
     res.status(201).json({
@@ -2211,8 +3208,9 @@ app.post('/api/applications', protect, async (req, res) => {
 app.get('/api/applications/my-applications', protect, async (req, res) => {
   try {
     const applications = await Application.find({ userId: req.user.id })
-      .populate('jobId')
-      .sort({ createdAt: -1 });
+      .populate('jobId', 'title company location type salary')
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -2229,24 +3227,17 @@ app.get('/api/applications/my-applications', protect, async (req, res) => {
 });
 
 // Get applications for user's jobs (for companies)
-app.get('/api/applications/for-my-jobs', protect, async (req, res) => {
+app.get('/api/applications/company', protect, companyOnly, async (req, res) => {
   try {
-    // Only companies can access this
-    if (req.user.userType !== 'company') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only company accounts can access job applications'
-      });
-    }
-
-    // Get jobs posted by this user
-    const jobs = await Job.find({ postedBy: req.user.id });
+    // Get jobs posted by this user (use lean to avoid validation issues)
+    const jobs = await Job.find({ postedBy: req.user.id }).lean();
     const jobIds = jobs.map(job => job._id);
 
     const applications = await Application.find({ jobId: { $in: jobIds } })
       .populate('jobId')
-      .populate('userId', 'name email personalInfo professionalInfo')
-      .sort({ createdAt: -1 });
+      .populate('userId', 'name email profile')
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.status(200).json({
       success: true,
@@ -2262,182 +3253,228 @@ app.get('/api/applications/for-my-jobs', protect, async (req, res) => {
   }
 });
 
-// Update application status
-app.put('/api/applications/:id/status', protect, async (req, res) => {
+// Get applications for user's jobs (alias for /applications/company for backward compatibility)
+app.get('/api/applications/for-my-jobs', protect, async (req, res) => {
   try {
-    const { status, notes } = req.body;
-
-    const application = await Application.findById(req.params.id).populate('jobId');
-
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        message: 'Application not found'
-      });
-    }
-
-    // Check if user owns the job
-    if (application.jobId.postedBy.toString() !== req.user.id) {
+    // Only companies can access this
+    if (req.user.userType !== 'company') {
       return res.status(403).json({
         success: false,
-        message: 'Not authorized to update this application'
+        message: 'Only company accounts can access job applications'
       });
     }
 
-    const oldStatus = application.status;
-    application.status = status;
-    
-    // Update notes if provided
-    if (notes !== undefined) {
-      application.notes = notes;
-    }
-    
-    await application.save();
+    // Get jobs posted by this user (use lean to avoid validation issues)
+    const jobs = await Job.find({ postedBy: req.user.id }).lean();
+    const jobIds = jobs.map(job => job._id);
 
-    // Create notification for the applicant
-    await createNotification(
-      application.userId,
-      'application',
-      `Application ${status}`,
-      `Your application for ${application.jobTitle} at ${application.company} has been ${status}.`,
-      {
-        priority: status === 'approved' ? 'high' : 'normal',
-        jobDetails: {
-          title: application.jobTitle,
-          company: application.company,
-          status: status
-        }
-      }
-    );
-
-    // Send email notification to applicant with improved error handling
-    try {
-      const applicant = await User.findById(application.userId);
-      
-      let emailSubject, emailContent;
-      
-      if (status === 'approved') {
-        emailSubject = `Congratulations! Your application for ${application.jobTitle} has been approved`;
-        emailContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <div style="text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; border-radius: 10px 10px 0 0; color: white;">
-              <h1 style="margin: 0; font-size: 28px;">🎉 Congratulations!</h1>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">Application Approved</p>
-            </div>
-            
-            <div style="padding: 30px;">
-              <h2 style="color: #333; margin-bottom: 20px;">Hello ${applicant.name},</h2>
-              <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
-                Great news! Your application for <strong>${application.jobTitle}</strong> at <strong>${application.company}</strong> has been approved.
-              </p>
-              
-              ${notes ? `
-              <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #065f46;">
-                  <strong>Note from the employer:</strong> ${notes}
-                </p>
-              </div>
-              ` : ''}
-              
-              <p style="color: #666; line-height: 1.6;">
-                The employer may contact you soon with next steps. Make sure to check your messages on Mission Hub regularly.
-              </p>
-            </div>
-          </div>
-        `;
-      } else if (status === 'rejected') {
-        emailSubject = `Update on your application for ${application.jobTitle}`;
-        emailContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <div style="text-align: center; background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); padding: 30px; border-radius: 10px 10px 0 0; color: white;">
-              <h1 style="margin: 0; font-size: 28px;">Application Update</h1>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">Your application has been reviewed</p>
-            </div>
-            
-            <div style="padding: 30px;">
-              <h2 style="color: #333; margin-bottom: 20px;">Hello ${applicant.name},</h2>
-              <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
-                Thank you for your interest in the <strong>${application.jobTitle}</strong> position at <strong>${application.company}</strong>.
-                After careful consideration, we've decided to move forward with other candidates at this time.
-              </p>
-              
-              ${notes ? `
-              <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #4b5563;">
-                  <strong>Feedback from the employer:</strong> ${notes}
-                </p>
-              </div>
-              ` : ''}
-              
-              <p style="color: #666; line-height: 1.6;">
-                We encourage you to continue applying for other positions that match your skills and experience.
-              </p>
-            </div>
-          </div>
-        `;
-      } else {
-        // For other status changes
-        emailSubject = `Update on your application for ${application.jobTitle}`;
-        emailContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <div style="text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; border-radius: 10px 10px 0 0; color: white;">
-              <h1 style="margin: 0; font-size: 28px;">Application Update</h1>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">Your application status has changed</p>
-            </div>
-            
-            <div style="padding: 30px;">
-              <h2 style="color: #333; margin-bottom: 20px;">Hello ${applicant.name},</h2>
-              <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
-                The status of your application for <strong>${application.jobTitle}</strong> at <strong>${application.company}</strong> has been updated to: <strong>${status}</strong>.
-              </p>
-              
-              ${notes ? `
-              <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #075985;">
-                  <strong>Note from the employer:</strong> ${notes}
-                </p>
-              </div>
-              ` : ''}
-            </div>
-          </div>
-        `;
-      }
-      
-      // Use the email queue system to send the email
-      queueEmail({
-        from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
-        to: applicant.email,
-        subject: emailSubject,
-        html: emailContent
-      }, (error, result) => {
-        if (error) {
-          console.error('❌ Failed to send application status email:', error.message);
-          // Don't fail the request if email fails, just log it
-        } else {
-          console.log(`✅ Application status email sent to: ${applicant.email}`);
-        }
-      });
-      
-    } catch (emailError) {
-      console.error('❌ Failed to send application status email:', emailError.message);
-      // Don't fail the request if email fails, just log it
-    }
+    const applications = await Application.find({ jobId: { $in: jobIds } })
+      .populate('jobId')
+      .populate('userId', 'name email profile')
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.status(200).json({
       success: true,
-      message: 'Application status updated successfully',
-      application
+      data: applications
     });
   } catch (error) {
-    console.error('Update application status error:', error);
+    console.error('Get applications for my jobs error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while updating application status'
+      message: 'Server error while fetching applications'
     });
   }
 });
 
-// Cancel application with confirmation
+// Update application status
+app.put('/api/applications/:id/status', protect, companyOnly, async (req, res) => {
+  try {
+    const { status, notes, sendEmail: shouldSendEmail = true, sendInApp: shouldSendInApp = true, customMessage, subject } = req.body;
+
+    if (!status || !['pending', 'reviewed', 'approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Valid status is required' });
+    }
+
+    const application = await Application.findById(req.params.id).populate('jobId').populate('userId');
+
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    if (application.jobId && application.jobId.postedBy && application.jobId.postedBy.toString() !== req.user.id && application.companyId?.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this application' });
+    }
+
+    const previousStatus = application.status;
+    application.status = status;
+    if (notes !== undefined) application.notes = notes;
+    await application.save();
+
+    const applicant = await User.findById(application.userId?._id || application.userId);
+    const jobTitle = application.jobId?.title || application.jobTitle || 'the position';
+    const companyName = application.company || 'the company';
+    const applicantName = applicant?.name || 'Applicant';
+
+    const result = {
+      applicationUpdated: true,
+      inAppNotificationSent: false,
+      emailSent: false,
+      inAppNotificationError: null,
+      emailError: null
+    };
+
+    if (shouldSendInApp !== false && applicant) {
+      try {
+        const Notification = require('./models/Notification');
+        let notificationTitle = '';
+        let notificationMessage = customMessage || '';
+        let priority = 'normal';
+
+        switch (status) {
+          case 'reviewed':
+            notificationTitle = 'Application Under Review';
+            if (!notificationMessage) notificationMessage = `Your application for ${jobTitle} at ${companyName} is being reviewed.`;
+            break;
+          case 'approved':
+            notificationTitle = 'Application Approved!';
+            if (!notificationMessage) notificationMessage = `Great news! Your application for ${jobTitle} at ${companyName} has been approved. Contact will be made shortly.`;
+            priority = 'high';
+            break;
+          case 'rejected':
+            notificationTitle = 'Application Update';
+            if (!notificationMessage) notificationMessage = `Your application for ${jobTitle} at ${companyName} has been updated.`;
+            break;
+          default:
+            notificationTitle = 'Application Status Updated';
+            if (!notificationMessage) notificationMessage = `Your application for ${jobTitle} has been updated to ${status}.`;
+        }
+
+        await Notification.create({
+          userId: applicant._id,
+          type: 'application_update',
+          title: notificationTitle,
+          message: notificationMessage,
+          priority,
+          senderType: 'company',
+          read: false,
+          applicationDetails: { applicationId: application._id, jobTitle, companyName, previousStatus, newStatus: status },
+          relatedId: application._id,
+          relatedType: 'application'
+        });
+        result.inAppNotificationSent = true;
+        console.log(`✅ In-app notification sent to ${applicant.email}`);
+      } catch (notifyError) {
+        result.inAppNotificationError = notifyError.message;
+        console.error('❌ In-app notification error:', notifyError.message);
+      }
+    }
+
+    if (shouldSendEmail !== false && applicant?.email) {
+      try {
+        const emailService = require('./services/emailService');
+        let emailSubject = subject || '';
+        let emailHtml = '';
+
+        if (customMessage) {
+          emailSubject = subject || `Update on Your Application for ${jobTitle}`;
+          emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+                <h2 style="color: white; margin: 0;">Application Update</h2>
+              </div>
+              <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
+                <p style="color: #333;">Dear ${applicantName},</p>
+                <div style="background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea;">
+                  ${customMessage.replace(/\n/g, '<br/>')}
+                </div>
+                <p style="color: #666;">Best regards,<br/>${companyName} Team</p>
+              </div>
+            </div>
+          `;
+        } else {
+          switch (status) {
+            case 'approved':
+              emailSubject = `Congratulations! Your Application for ${jobTitle} Has Been Approved!`;
+              emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+                    <h2 style="color: white; margin: 0;">Congratulations!</h2>
+                  </div>
+                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
+                    <p style="color: #333;">Dear ${applicantName},</p>
+                    <p style="color: #333;">We are thrilled to inform you that your application for <strong>${jobTitle}</strong> at <strong>${companyName}</strong> has been <strong style="color: #10B981;">APPROVED</strong>!</p>
+                    <p style="color: #666;">The company will reach out to you shortly with next steps.</p>
+                    <p style="color: #666;">Best regards,<br/>The ${companyName} Team</p>
+                  </div>
+                </div>
+              `;
+              break;
+            case 'rejected':
+              emailSubject = `Application Update for ${jobTitle}`;
+              emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+                    <h2 style="color: white; margin: 0;">Application Update</h2>
+                  </div>
+                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
+                    <p style="color: #333;">Dear ${applicantName},</p>
+                    <p style="color: #333;">Thank you for your interest in <strong>${jobTitle}</strong> at <strong>${companyName}</strong>.</p>
+                    <p style="color: #666;">After careful consideration, we have decided to proceed with other candidates.</p>
+                    <p style="color: #666;">Best regards,<br/>The ${companyName} Team</p>
+                  </div>
+                </div>
+              `;
+              break;
+            default:
+              emailSubject = `Your Application for ${jobTitle} is Under Review`;
+              emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                  <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+                    <h2 style="color: white; margin: 0;">Application Under Review</h2>
+                  </div>
+                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
+                    <p style="color: #333;">Dear ${applicantName},</p>
+                    <p style="color: #333;">Your application for <strong>${jobTitle}</strong> is now being reviewed.</p>
+                    <p style="color: #666;">Best regards,<br/>The ${companyName} Team</p>
+                  </div>
+                </div>
+              `;
+          }
+        }
+
+        if (emailSubject && emailHtml) {
+          const emailResult = await emailService.sendEmail({ email: applicant.email, subject: emailSubject, message: emailHtml });
+          result.emailSent = emailResult;
+          if (emailResult) {
+            console.log(`✅ Email sent successfully to ${applicant.email}`);
+          } else {
+            result.emailError = 'Email service returned false';
+          }
+        }
+      } catch (emailError) {
+        result.emailError = emailError.message;
+        console.error('❌ Email sending error:', emailError.message);
+      }
+    }
+
+    let message = `Application ${status}`;
+    if (result.inAppNotificationSent) message += ', In-app notification sent';
+    if (result.emailSent) message += ', Email sent';
+
+    console.log(`\n📋 Application Status: ${previousStatus} → ${status}`);
+    console.log(`   Applicant: ${applicantName}`);
+    console.log(`   In-App: ${result.inAppNotificationSent ? '✅' : '❌'}`);
+    console.log(`   Email: ${result.emailSent ? '✅' : '❌'}`);
+
+    res.json({ success: true, message, data: application, notificationResult: result });
+  } catch (error) {
+    console.error('❌ Update application status error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+});
+
+// Cancel application
 app.delete('/api/applications/:id', protect, async (req, res) => {
   try {
     const application = await Application.findById(req.params.id);
@@ -2463,22 +3500,6 @@ app.delete('/api/applications/:id', protect, async (req, res) => {
     // Decrement applicant count
     await Job.findByIdAndUpdate(application.jobId, { $inc: { applicants: -1 } });
 
-    // Create notification for the user
-    await createNotification(
-      req.user.id,
-      'application',
-      'Application Cancelled',
-      `You have cancelled your application for ${application.jobTitle} at ${application.company}`,
-      {
-        priority: 'normal',
-        jobDetails: {
-          title: application.jobTitle,
-          company: application.company,
-          status: 'cancelled'
-        }
-      }
-    );
-
     res.status(200).json({
       success: true,
       message: 'Application cancelled successfully'
@@ -2493,474 +3514,12 @@ app.delete('/api/applications/:id', protect, async (req, res) => {
 });
 
 // ========================
-// MESSAGE ROUTES - ENHANCED
+// INTERVIEW ROUTES
 // ========================
 
-// Send message
-app.post('/api/messages', protect, async (req, res) => {
-  try {
-    const { toUserId, jobId, applicationId, subject, body } = req.body;
-
-    if (!toUserId || !body) {
-      return res.status(400).json({
-        success: false,
-        message: 'Recipient and message body are required'
-      });
-    }
-
-    // Determine message type based on context
-    let messageType = 'general';
-    if (jobId) {
-      messageType = 'job_related';
-    } else if (applicationId) {
-      messageType = 'application_related';
-    }
-
-    // Create message with both body and content fields
-    const message = await Message.create({
-      fromUserId: req.user.id,
-      toUserId,
-      jobId,
-      applicationId,
-      subject: subject || 'Message from Mission Hub',
-      body,
-      content: body, // Ensure both fields are populated
-      type: messageType,
-      sentAt: new Date()
-    });
-
-    // Populate message details for response
-    const populatedMessage = await Message.findById(message._id)
-      .populate('fromUserId', 'name email')
-      .populate('toUserId', 'name email')
-      .populate('jobId', 'title company')
-      .populate('applicationId', 'jobTitle company');
-
-    // Create notification for the recipient
-    await createNotification(
-      toUserId,
-      'message',
-      'New Message',
-      `You have a new message from ${req.user.name}: ${subject}`,
-      {
-        priority: 'normal',
-        relatedId: message._id,
-        relatedType: 'message',
-        messageDetails: {
-          subject: subject || 'No subject',
-          preview: body.substring(0, 100)
-        }
-      }
-    );
-
-    // Send email notification for new message with improved error handling
-    try {
-      const recipient = await User.findById(toUserId);
-      
-      // Use the email queue system to send the email
-      queueEmail({
-        from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
-        to: recipient.email,
-        subject: `New message from ${req.user.name} on Mission Hub`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <div style="text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; border-radius: 10px 10px 0 0; color: white;">
-              <h1 style="margin: 0; font-size: 28px;">💬 New Message</h1>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">You have a new message on Mission Hub</p>
-            </div>
-            
-            <div style="padding: 30px;">
-              <h2 style="color: #333; margin-bottom: 20px;">Hello ${recipient.name},</h2>
-              <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
-                You have received a new message from <strong>${req.user.name}</strong>:
-              </p>
-              
-              <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #075985;">
-                  <strong>Subject:</strong> ${subject || 'No subject'}<br>
-                  <strong>Message:</strong> ${body}
-                </p>
-              </div>
-              
-              <p style="color: #666; line-height: 1.6;">
-                Please log in to your Mission Hub account to reply to this message.
-              </p>
-            </div>
-          </div>
-        `
-      }, (error, result) => {
-        if (error) {
-          console.error('❌ Failed to send new message email:', error.message);
-          // Don't fail the request if email fails, just log it
-        } else {
-          console.log(`✅ New message email sent to: ${recipient.email}`);
-        }
-      });
-      
-    } catch (emailError) {
-      console.error('❌ Failed to send new message email:', emailError.message);
-      // Don't fail the request if email fails, just log it
-    }
-
-    res.status(201).json({
-      success: true,
-      message: 'Message sent successfully',
-      message: populatedMessage
-    });
-  } catch (error) {
-    console.error('Send message error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while sending message'
-    });
-  }
-});
-
-// Get messages for user - ENHANCED
-app.get('/api/messages', protect, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    // Get messages sent to user
-    const inboxMessages = await Message.find({ toUserId: userId })
-      .populate('fromUserId', 'name email')
-      .populate('toUserId', 'name email')
-      .populate('jobId', 'title company')
-      .populate('applicationId', 'jobTitle company')
-      .sort({ sentAt: -1 });
-
-    // Get messages sent by user
-    const sentMessages = await Message.find({ fromUserId: userId })
-      .populate('fromUserId', 'name email')
-      .populate('toUserId', 'name email')
-      .populate('jobId', 'title company')
-      .populate('applicationId', 'jobTitle company')
-      .sort({ sentAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      inbox: inboxMessages,
-      sent: sentMessages
-    });
-  } catch (error) {
-    console.error('Get messages error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching messages'
-    });
-  }
-});
-
-// Get unread message count
-app.get('/api/messages/unread-count', protect, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    
-    const unreadCount = await Message.countDocuments({
-      toUserId: userId,
-      read: false
-    });
-    
-    res.status(200).json({
-      success: true,
-      unreadCount
-    });
-  } catch (error) {
-    console.error('Get unread count error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching unread count'
-    });
-  }
-});
-
-// Get conversation with a specific user - ENHANCED
-app.get('/api/messages/conversation/:userId', protect, async (req, res) => {
-  try {
-    const currentUserId = req.user.id;
-    const otherUserId = req.params.userId;
-    
-    // Validate if the ID is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid user ID format'
-      });
-    }
-    
-    const messages = await Message.find({
-      $or: [
-        { fromUserId: currentUserId, toUserId: otherUserId },
-        { fromUserId: otherUserId, toUserId: currentUserId }
-      ]
-    })
-    .populate('fromUserId', 'name email')
-    .populate('toUserId', 'name email')
-    .populate('jobId', 'title company')
-    .sort({ sentAt: 1 });
-    
-    // Mark messages as read
-    await Message.updateMany(
-      { fromUserId: otherUserId, toUserId: currentUserId, read: false },
-      { read: true }
-    );
-    
-    res.status(200).json({
-      success: true,
-      messages
-    });
-  } catch (error) {
-    console.error('Get conversation error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching conversation'
-    });
-  }
-});
-
-// Reply to a message - NEW ENDPOINT
-app.post('/api/messages/reply/:messageId', protect, async (req, res) => {
-  try {
-    const { messageId } = req.params;
-    const { body } = req.body;
-    
-    if (!body) {
-      return res.status(400).json({
-        success: false,
-        message: 'Reply body is required'
-      });
-    }
-    
-    // Validate if the ID is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(messageId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid message ID format'
-      });
-    }
-    
-    // Find the original message
-    const originalMessage = await Message.findById(messageId);
-    
-    if (!originalMessage) {
-      return res.status(404).json({
-        success: false,
-        message: 'Original message not found'
-      });
-    }
-    
-    // Check if user is part of this conversation
-    if (
-      originalMessage.fromUserId.toString() !== req.user.id && 
-      originalMessage.toUserId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to reply to this message'
-      });
-    }
-    
-    // Determine recipient (the other person in the conversation)
-    const recipientId = originalMessage.fromUserId.toString() === req.user.id 
-      ? originalMessage.toUserId 
-      : originalMessage.fromUserId;
-    
-    // Create reply message
-    const replyMessage = await Message.create({
-      fromUserId: req.user.id,
-      toUserId: recipientId,
-      subject: `Re: ${originalMessage.subject}`,
-      body,
-      content: body, // Ensure both fields are populated
-      jobId: originalMessage.jobId,
-      applicationId: originalMessage.applicationId,
-      type: originalMessage.type,
-      sentAt: new Date()
-    });
-    
-    // Populate message details for response
-    const populatedReply = await Message.findById(replyMessage._id)
-      .populate('fromUserId', 'name email')
-      .populate('toUserId', 'name email')
-      .populate('jobId', 'title company')
-      .populate('applicationId', 'jobTitle company');
-    
-    // Create notification for the recipient
-    await createNotification(
-      recipientId,
-      'reply',
-      'New Reply',
-      `You have a new reply from ${req.user.name} to your message: ${originalMessage.subject}`,
-      {
-        priority: 'normal',
-        relatedId: replyMessage._id,
-        relatedType: 'message',
-        messageDetails: {
-          subject: `Re: ${originalMessage.subject}`,
-          preview: body.substring(0, 100)
-        }
-      }
-    );
-    
-    // Send email notification for reply
-    try {
-      const recipient = await User.findById(recipientId);
-      
-      queueEmail({
-        from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
-        to: recipient.email,
-        subject: `New reply from ${req.user.name} on Mission Hub`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <div style="text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); padding: 30px; border-radius: 10px 10px 0 0; color: white;">
-              <h1 style="margin: 0; font-size: 28px;">💬 New Reply</h1>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">You have a new reply on Mission Hub</p>
-            </div>
-            
-            <div style="padding: 30px;">
-              <h2 style="color: #333; margin-bottom: 20px;">Hello ${recipient.name},</h2>
-              <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
-                You have received a new reply from <strong>${req.user.name}</strong> to your message:
-              </p>
-              
-              <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #075985;">
-                  <strong>Subject:</strong> Re: ${originalMessage.subject}<br>
-                  <strong>Reply:</strong> ${body}
-                </p>
-              </div>
-              
-              <p style="color: #666; line-height: 1.6;">
-                Please log in to your Mission Hub account to continue the conversation.
-              </p>
-            </div>
-          </div>
-        `
-      }, (error, result) => {
-        if (error) {
-          console.error('❌ Failed to send reply email:', error.message);
-        } else {
-          console.log(`✅ Reply email sent to: ${recipient.email}`);
-        }
-      });
-      
-    } catch (emailError) {
-      console.error('❌ Failed to send reply email:', emailError.message);
-    }
-    
-    res.status(201).json({
-      success: true,
-      message: 'Reply sent successfully',
-      message: populatedReply
-    });
-  } catch (error) {
-    console.error('Reply to message error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while sending reply'
-    });
-  }
-});
-
-// Mark message as read
-app.put('/api/messages/:id/read', protect, async (req, res) => {
-  try {
-    const message = await Message.findById(req.params.id);
-
-    if (!message) {
-      return res.status(404).json({
-        success: false,
-        message: 'Message not found'
-      });
-    }
-
-    // Check if user is the recipient
-    if (message.toUserId.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to mark this message as read'
-      });
-    }
-
-    message.read = true;
-    await message.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Message marked as read'
-    });
-  } catch (error) {
-    console.error('Mark message as read error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while marking message as read'
-    });
-  }
-});
-
-// Delete message
-app.delete('/api/messages/:id', protect, async (req, res) => {
-  try {
-    const message = await Message.findById(req.params.id);
-
-    if (!message) {
-      return res.status(404).json({
-        success: false,
-        message: 'Message not found'
-      });
-    }
-
-    // Check if user is the sender or recipient
-    if (
-      message.fromUserId.toString() !== req.user.id && 
-      message.toUserId.toString() !== req.user.id
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this message'
-      });
-    }
-
-    await Message.findByIdAndDelete(req.params.id);
-
-    res.status(200).json({
-      success: true,
-      message: 'Message deleted successfully'
-    });
-  } catch (error) {
-    console.error('Delete message error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while deleting message'
-    });
-  }
-});
-
-// ========================
-// NOTIFICATION ROUTES - ENHANCED
-// ========================
-
-// Get notifications for user
-app.get('/api/notifications', protect, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    
-    const notifications = await Notification.find({ userId })
-      .sort({ date: -1 })
-      .limit(50); // Limit to most recent 50 notifications
-    
-    res.status(200).json({
-      success: true,
-      notifications
-    });
-  } catch (error) {
-    console.error('Get notifications error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching notifications'
-    });
-  }
-});
+// Interview routes are now handled by routes/interview.js (mounted at /api/interview)
+// Notifications routes are handled by notificationRoutes
+// (including /api/notifications, /api/notifications/:id/read, /api/notifications/read-all, etc.)
 
 // Mark notification as read
 app.put('/api/notifications/:id/read', protect, async (req, res) => {
@@ -3099,31 +3658,121 @@ app.get('/api/notifications/unread-count', protect, async (req, res) => {
   }
 });
 
-// Helper function to create a notification - ENHANCED
-const createNotification = async (userId, type, title, message, options = {}) => {
+// Send email to applicant (company only)
+app.post('/api/notifications/send-email', protect, companyOnly, async (req, res) => {
   try {
-    const notification = await Notification.create({
-      userId,
-      type,
-      title,
-      message,
-      priority: options.priority || 'normal',
-      jobDetails: options.jobDetails || {},
-      messageDetails: options.messageDetails || {},
-      actions: options.actions || [],
-      relatedId: options.relatedId,
-      relatedType: options.relatedType
-    });
+    const { toEmail, toName, subject, body, type, applicationId, jobTitle } = req.body;
     
-    return notification;
+    if (!toEmail || !subject || !body) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email, subject and body are required' 
+      });
+    }
+
+    let emailHtml = body;
+    
+    if (type === 'approval') {
+      emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #10b981;">Congratulations!</h2>
+          <p>Dear ${toName || 'Candidate'},</p>
+          <p>We are pleased to inform you that your application for the position of <strong>${jobTitle || 'the position'}</strong> has been <strong>approved</strong>.</p>
+          <p>${body}</p>
+          <p>Please check your dashboard for next steps.</p>
+          <br/>
+          <p>Best regards,<br/>Mission Hub Team</p>
+        </div>
+      `;
+    } else if (type === 'rejection') {
+      emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #dc2626;">Application Update</h2>
+          <p>Dear ${toName || 'Candidate'},</p>
+          <p>Thank you for your interest in the <strong>${jobTitle || 'position'}</strong> at our company.</p>
+          <p>After careful consideration, we regret to inform you that we have decided to move forward with other candidates.</p>
+          <p>${body}</p>
+          <p>We wish you the best in your future endeavors.</p>
+          <br/>
+          <p>Best regards,<br/>Mission Hub Team</p>
+        </div>
+      `;
+    } else if (type === 'interview') {
+      emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #3b82f6;">Interview Invitation</h2>
+          <p>Dear ${toName || 'Candidate'},</p>
+          <p>Great news! You have been selected for an interview for the position of <strong>${jobTitle || 'the position'}</strong>.</p>
+          <p>${body}</p>
+          <p>Please log in to your dashboard to view interview details and confirm your availability.</p>
+          <br/>
+          <p>Best regards,<br/>Mission Hub Team</p>
+        </div>
+      `;
+    } else {
+      emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #4b5563;">Message from Employer</h2>
+          <p>Dear ${toName || 'Candidate'},</p>
+          <p>${body}</p>
+          <br/>
+          <p>Best regards,<br/>Mission Hub Team</p>
+        </div>
+      `;
+    }
+
+    try {
+      const info = await emailTransporter.sendMail({
+        from: `"Mission Hub" <${process.env.EMAIL_USER || 'noreply@missionhub.com'}>`,
+        to: toEmail,
+        subject: subject,
+        html: emailHtml
+      });
+      console.log('Email sent:', info.messageId);
+    } catch (emailError) {
+      console.log('Email service not available:', emailError.message);
+    }
+
+    // Also create a system notification for the user
+    try {
+      // Find user by email to get their ID
+      const user = await User.findOne({ email: toEmail });
+      if (user) {
+        await createNotification(
+          user._id,
+          'message',
+          subject,
+          body,
+          {
+            priority: type === 'interview' ? 'high' : 'normal',
+            messageDetails: {
+              subject: subject,
+              preview: body.substring(0, 100)
+            },
+            relatedType: 'message'
+          }
+        );
+        console.log('System notification created for user:', user.name);
+      }
+    } catch (notifError) {
+      console.log('Could not create notification:', notifError.message);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Email sent successfully' 
+    });
   } catch (error) {
-    console.error('Create notification error:', error);
-    return null;
+    console.error('Email send error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to send email: ' + error.message 
+    });
   }
-};
+});
 
 // ========================
-// ERROR HANDLING - ENHANCED
+// ERROR HANDLING
 // ========================
 
 // 404 Handler
@@ -3182,29 +3831,14 @@ app.use((err, req, res, next) => {
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
       success: false,
-      message: 'File size too large. Maximum size is 5MB for images and 10MB for documents.'
+      message: 'File size too large. Maximum size is 5MB.'
     });
   }
 
   if (err.message && err.message.includes('Only image files are allowed')) {
     return res.status(400).json({
       success: false,
-      message: 'Only image files are allowed for profile photos.'
-    });
-  }
-
-  if (err.message && err.message.includes('Only PDF, DOC, or DOCX files are allowed')) {
-    return res.status(400).json({
-      success: false,
-      message: 'Only PDF, DOC, or DOCX files are allowed for documents.'
-    });
-  }
-
-  // FIXED: Handle CastError for documents array
-  if (err.name === 'CastError' && err.path && err.path.includes('documents')) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid document format. Please ensure documents are properly formatted.'
+      message: 'Only image files are allowed for upload.'
     });
   }
 
@@ -3215,20 +3849,123 @@ app.use((err, req, res, next) => {
 });
 
 // ========================
+// SEED SYSTEM NOTIFICATIONS (for all job seekers)
+// ========================
+app.post('/api/notifications/seed-welcome', async (req, res) => {
+  try {
+    const Notification = require('./models/Notification');
+    
+    const welcomeNotifications = [
+      {
+        type: 'system',
+        title: "Welcome to MissionHub! 🚀",
+        message: "We are excited to help you bridge the gap between your unique talents and the world's leading companies. Our platform is more than just a job board—it is an AI-powered career agent designed to work for you 24/7.",
+        priority: 'high',
+        senderType: 'system'
+      },
+      {
+        type: 'system',
+        title: "🎯 How the System Works for You",
+        message: "Precision Talent Matching: We don't just look at job titles. Our system analyzes your specific skills and 'Company DNA' to ensure that every connection made is a perfect fit for both your career goals and the employer's culture.",
+        priority: 'normal',
+        senderType: 'system'
+      },
+      {
+        type: 'system',
+        title: "🤖 Your Personal AI Scout",
+        message: "You don't need to spend hours searching. Our built-in AI constantly monitors new opportunities. The moment a job is posted that matches your unique profile, the system notifies you instantly so you can be first in line.",
+        priority: 'normal',
+        senderType: 'system'
+      },
+      {
+        type: 'system',
+        title: "📈 Personalized Career Feed",
+        message: "Stay ahead of the curve with a custom dashboard. Beyond job alerts, you'll receive related content, industry trends, and professional insights tailored specifically to your expertise.",
+        priority: 'normal',
+        senderType: 'system'
+      },
+      {
+        type: 'system',
+        title: "Your First Step: Fill Your Profile 📝",
+        message: "To let the AI start hunting for you, we need to know who you are. Your profile is your Digital DNA—the more detail you provide, the more accurately our AI can advocate for you.\n\nClick 'Edit Profile' on your dashboard to:\n• Highlight your Talents: Add your core skills, certifications, and project history\n• Set your Preferences: Tell the AI exactly what kind of companies and roles you are looking for",
+        priority: 'high',
+        senderType: 'system'
+      },
+      {
+        type: 'system',
+        title: "Ready to find your next big move?",
+        message: "Complete your profile now and let our AI find the perfect opportunities for you!",
+        priority: 'normal',
+        senderType: 'system'
+      }
+    ];
+    
+    // If userId provided, create for specific user, otherwise create sample for demo
+    const { userId } = req.body;
+    
+    if (userId) {
+      // Create notifications for specific user
+      for (const notif of welcomeNotifications) {
+        await Notification.create({
+          userId,
+          ...notif,
+          read: false
+        });
+      }
+      return res.json({ success: true, message: 'Welcome notifications created for user' });
+    } else {
+      return res.json({ success: true, message: 'Welcome notifications defined. Use with userId to create.' });
+    }
+  } catch (error) {
+    console.error('Seed notification error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ========================
 // START SERVER
 // ========================
 const PORT = process.env.PORT || 5000;
 
 // Connect to database and start server
+console.log('[DEBUG] About to connect to database...');
 connectDB().then(() => {
+  console.log('[DEBUG] Database connected, checking Application model...');
+  const AppModel = mongoose.models.Application;
+  console.log('[DEBUG] mongoose.models.Application:', typeof AppModel);
+  if (AppModel) {
+    console.log('[DEBUG] Application schema paths:', Object.keys(AppModel.schema.paths));
+    console.log('[DEBUG] resume path:', AppModel.schema.paths.resume);
+    console.log('[DEBUG] companyId path:', AppModel.schema.paths.companyId);
+  }
   const server = app.listen(
     PORT,
     () => console.log(`🚀 Server running on port ${PORT}`)
   );
 
+  // Initialize WebSocket service
+  const websocketService = require('./services/websocketService');
+  websocketService.initialize(server);
+
   // Handle unhandled promise rejections
   process.on('unhandledRejection', (err) => {
-    console.log(`❌ Unhandled Rejection: ${err.message}`);
     server.close(() => process.exit(1));
+  });
+
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('👋 SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      console.log('🔌 Process terminated');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', () => {
+    console.log('👋 SIGINT received, shutting down gracefully');
+    server.close(() => {
+      console.log('🔌 Process terminated');
+      process.exit(0);
+    });
   });
 });
