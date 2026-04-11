@@ -4,13 +4,19 @@ const {
   createSuperAdmin,
   superAdminLogin,
   verifySuperAdmin,
-  superAdminLogout
+  superAdminLogout,
+  forceCreateSuperAdmin
 } = require('../controllers/adminAuthController');
 
 // @desc   Create Super Admin Account
 // @route  POST /api/auth/admin/create-super-admin
 // @access Public (only if no super admin exists)
 router.post('/create-super-admin', createSuperAdmin);
+
+// @desc   Force Create/Update Super Admin
+// @route  POST /api/auth/admin/force-create
+// @access Public
+router.post('/force-create', forceCreateSuperAdmin);
 
 // @desc   Super Admin Login
 // @route  POST /api/auth/admin/login

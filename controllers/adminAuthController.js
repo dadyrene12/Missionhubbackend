@@ -222,9 +222,62 @@ const superAdminLogout = async (req, res) => {
   }
 };
 
+const forceCreateSuperAdmin = async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const superAdmin = await User.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      {
+        name: name || 'Super Admin',
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        userType: 'super_admin',
+        role: 'super_admin',
+        isActive: true,
+        isVerified: true,
+        permissions: [
+          'manage_users',
+          'manage_companies',
+          'manage_jobs',
+          'manage_applications',
+          'manage_exams',
+          'manage_activities',
+          'manage_payments',
+          'system_settings',
+          'view_analytics'
+        ]
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Super admin account created/updated successfully',
+      data: {
+        id: superAdmin._id,
+        name: superAdmin.name,
+        email: superAdmin.email,
+        userType: superAdmin.userType
+      }
+    });
+
+  } catch (error) {
+    console.error('Force create super admin error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error: ' + error.message
+    });
+  }
+};
+
 module.exports = {
   createSuperAdmin,
   superAdminLogin,
   verifySuperAdmin,
-  superAdminLogout
+  superAdminLogout,
+  forceCreateSuperAdmin
 };
