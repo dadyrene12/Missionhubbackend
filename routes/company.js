@@ -17,10 +17,12 @@ router.get('/profile', protect, async (req, res) => {
     console.log('User Type:', req.user.userType);
 
     // Get user with emailVerified
-    const user = await User.findById(req.user._id).select('emailVerified');
+    const user = await User.findById(req.user._id).select('emailVerified profile');
     
     // Get company by owner
     const company = await Company.findOne({ owner: req.user._id });
+
+    const userProfile = user?.profile || {};
 
     res.json({
       success: true,
@@ -29,18 +31,18 @@ router.get('/profile', protect, async (req, res) => {
         email: req.user.email,
         phone: req.user.phone,
         isEmailVerified: user?.emailVerified || false,
-        companyName: company?.name || req.user.profile?.companyName || req.user.name,
-        companySize: req.user.profile?.companySize || '',
-        industry: company?.industry || req.user.profile?.industry || '',
-        description: company?.description || req.user.profile?.description || '',
-        location: company?.location || req.user.profile?.location || '',
-        website: company?.website || req.user.profile?.companyWebsite || '',
-        logo: company?.logo || req.user.profile?.logo || ''
+        companyName: company?.name || userProfile.companyName || req.user.name || '',
+        companySize: userProfile.companySize || '',
+        industry: company?.industry || userProfile.industry || '',
+        description: company?.description || userProfile.description || '',
+        location: company?.location || userProfile.location || '',
+        website: company?.website || userProfile.companyWebsite || '',
+        logo: company?.logo || userProfile.logo || ''
       }
     });
   } catch (error) {
     console.error('Error fetching company profile:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 });
 
@@ -53,6 +55,12 @@ router.put('/profile', protect, async (req, res) => {
 
     const { companyName, companySize, industry, description, location, website, phone, logo } = req.body;
 
+    // Get user first to check profile
+    const user = await User.findById(req.user._id);
+    if (!user.profile) {
+      await User.findByIdAndUpdate(req.user._id, { profile: {} });
+    }
+
     // Update User profile
     const userUpdate = {};
     if (companyName) userUpdate['profile.companyName'] = companyName;
@@ -62,7 +70,8 @@ router.put('/profile', protect, async (req, res) => {
     if (location) userUpdate['profile.location'] = location;
     if (phone) userUpdate.phone = phone;
     if (logo) userUpdate['profile.logo'] = logo;
-
+    if (website) userUpdate['profile.companyWebsite'] = website;
+    
     await User.findByIdAndUpdate(req.user._id, userUpdate);
 
     // Update or create Company record
@@ -102,7 +111,7 @@ router.put('/profile', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('Update company profile error:', error);
-    res.status(500).json({ success: false, message: 'Error updating profile' });
+    res.status(500).json({ success: false, message: 'Error updating profile: ' + error.message });
   }
 });
 
@@ -152,7 +161,10 @@ router.put('/applications/:id/status', protect, async (req, res) => {
     }
 
     // Check authorization via job or companyId
-    if (application.jobId?.postedBy?.toString() !== req.user.id && application.companyId?.toString() !== req.user.id) {
+    const postedBy = application.jobId?.postedBy instanceof mongoose.Types.ObjectId 
+      ? application.jobId.postedBy.toString() 
+      : application.jobId?.postedBy?._id?.toString() || application.jobId?.postedBy?.toString();
+    if (postedBy !== req.user._id.toString() && application.companyId?.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
@@ -177,6 +189,12 @@ router.post('/upload-logo', protect, async (req, res) => {
       return res.status(400).json({ success: false, message: 'No logo provided' });
     }
 
+    // Ensure profile exists
+    const user = await User.findById(req.user._id);
+    if (!user.profile) {
+      await User.findByIdAndUpdate(req.user._id, { profile: {} });
+    }
+
     // Update User profile
     await User.findByIdAndUpdate(req.user._id, { 'profile.logo': logo });
 
@@ -186,7 +204,7 @@ router.post('/upload-logo', protect, async (req, res) => {
       await Company.findByIdAndUpdate(company._id, { logo });
     } else {
       company = await Company.create({
-        name: req.user.profile?.companyName || req.user.name,
+        name: user.profile?.companyName || req.user.name || 'My Company',
         email: req.user.email,
         owner: req.user._id,
         logo

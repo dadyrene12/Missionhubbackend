@@ -1,12 +1,137 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+const documentSchema = new mongoose.Schema({
+  name: { type: String, default: '' },
+  url: { type: String, default: '' },
+  uploadDate: { type: Date, default: null },
+  size: { type: String, default: '' },
+  type: { type: String, default: '' },
+  category: { type: String, default: 'general' }
+}, { _id: true });
+
+const experienceDetailSchema = new mongoose.Schema({
+  company: { type: String, default: '' },
+  title: { type: String, default: '' },
+  location: { type: String, default: '' },
+  startDate: { type: Date, default: null },
+  endDate: { type: Date, default: null },
+  current: { type: Boolean, default: false },
+  description: { type: String, default: '' }
+}, { _id: true });
+
+const educationDetailSchema = new mongoose.Schema({
+  institution: { type: String, default: '' },
+  degree: { type: String, default: '' },
+  field: { type: String, default: '' },
+  startDate: { type: Date, default: null },
+  endDate: { type: Date, default: null }
+}, { _id: true });
+
+const userProfileSchema = new mongoose.Schema({
+  resume: {
+    name: { type: String, default: '' },
+    url: { type: String, default: '' },
+    uploadDate: { type: Date, default: null },
+    size: { type: String, default: '' },
+    type: { type: String, default: '' }
+  },
+  cv: {
+    name: { type: String, default: '' },
+    url: { type: String, default: '' },
+    uploadDate: { type: Date, default: null },
+    size: { type: String, default: '' },
+    type: { type: String, default: '' }
+  },
+  documents: [documentSchema],
+  
+  title: { type: String, default: '', trim: true },
+  bio: { type: String, default: '', maxlength: 2000 },
+  phone: { type: String, default: '', trim: true },
+  location: { type: String, default: '', trim: true },
+  
+  linkedin: { type: String, default: '', trim: true },
+  github: { type: String, default: '', trim: true },
+  portfolio: { type: String, default: '', trim: true },
+  
+  skills: [{ type: String, trim: true }],
+  yearsOfExperience: { type: Number, default: 0, min: 0, max: 50 },
+  desiredSalary: { type: String, default: '', trim: true },
+  workAuthorization: { type: String, default: '', trim: true },
+  relocation: { type: Boolean, default: false },
+  preferredJobType: { 
+    type: String, 
+    default: 'full-time',
+    enum: ['full-time', 'part-time', 'contract', 'internship', 'remote', 'freelance', '']
+  },
+  
+  experience: { type: String, default: '', maxlength: 5000 },
+  education: { type: String, default: '', maxlength: 5000 },
+  
+  experienceDetails: [experienceDetailSchema],
+  educationDetails: [educationDetailSchema],
+  
+  profilePhoto: { type: String, default: '' },
+  logo: { type: String, default: '' },
+  
+  companyName: { type: String, default: '', trim: true },
+  companyWebsite: { type: String, default: '', trim: true },
+  industry: { type: String, default: '', trim: true },
+  companySize: { type: String, default: '', trim: true },
+  headquarters: { type: String, default: '', trim: true },
+  description: { type: String, default: '', maxlength: 2000 },
+  
+  currentSalary: { type: String, default: '', trim: true },
+  availability: { type: String, default: '', enum: ['immediately', '2weeks', '1month', '3months', ''] },
+  preferredLocation: { type: String, default: '', trim: true },
+  remoteWork: { type: Boolean, default: false },
+  
+  languages: [{ type: String, trim: true }],
+  certifications: [{ type: String, trim: true }],
+  
+  linkedinUrl: { type: String, default: '', trim: true },
+  githubUrl: { type: String, default: '', trim: true },
+  websiteUrl: { type: String, default: '', trim: true },
+  
+  coverLetter: { type: String, default: '', maxlength: 2000 },
+  
+  socialLinks: {
+    twitter: { type: String, default: '' },
+    facebook: { type: String, default: '' },
+    instagram: { type: String, default: '' },
+    youtube: { type: String, default: '' },
+    tiktok: { type: String, default: '' }
+  },
+  
+  availabilityForInterview: {
+    type: String,
+    default: '',
+    enum: ['', 'weekdays', 'weekends', 'evenings', 'flexible']
+  },
+  
+  preferredStartDate: { type: Date, default: null },
+  
+  expectedSalary: { type: Number, default: null, min: 0 },
+  salaryCurrency: { type: String, default: 'USD', enum: ['USD', 'EUR', 'GBP', 'CAD', 'AUD', ''] },
+  
+  nationality: { type: String, default: '', trim: true },
+  dateOfBirth: { type: Date, default: null },
+  
+  gender: { type: String, default: '', enum: ['', 'male', 'female', 'other', 'prefer-not-to-say'] },
+  disability: { type: String, default: '' },
+  
+  isProfileComplete: { type: Boolean, default: false },
+  profileCompletionPercentage: { type: Number, default: 0, min: 0, max: 100 },
+  
+  lastProfileUpdate: { type: Date, default: null }
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Please add a name'],
     trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
+    maxlength: [100, 'Name cannot be more than 100 characters']
   },
   email: {
     type: String,
@@ -112,67 +237,29 @@ const userSchema = new mongoose.Schema({
     ip: String
   }],
   profile: {
-    resume: {
-      name: { type: String, default: '' },
-      url: { type: String, default: '' },
-      uploadDate: { type: Date, default: null },
-      size: { type: String, default: '' },
-      type: { type: String, default: '' }
-    },
-    cv: {
-      name: { type: String, default: '' },
-      url: { type: String, default: '' },
-      uploadDate: { type: Date, default: null },
-      size: { type: String, default: '' },
-      type: { type: String, default: '' }
-    },
-    documents: [{
-      _id: mongoose.Schema.Types.ObjectId,
-      name: { type: String, default: '' },
-      url: { type: String, default: '' },
-      uploadDate: { type: Date, default: null },
-      size: { type: String, default: '' },
-      type: { type: String, default: '' },
-      category: { type: String, default: '' }
-    }],
-    title: String,
-    bio: String,
-    phone: String,
-    location: String,
-    linkedin: String,
-    github: String,
-    portfolio: String,
-    skills: [String],
-    yearsOfExperience: Number,
-    desiredSalary: String,
-    workAuthorization: String,
-    relocation: Boolean,
-    preferredJobType: String,
-    experience: String,
-    education: String,
-    experienceDetails: [{
-      company: String,
-      title: String,
-      location: String,
-      startDate: Date,
-      endDate: Date,
-      current: Boolean,
-      description: String
-    }],
-    educationDetails: [{
-      institution: String,
-      degree: String,
-      field: String,
-      startDate: Date,
-      endDate: Date
-    }],
-    companyName: String,
-    companyWebsite: String,
-    industry: String,
-    companySize: String,
-    headquarters: String,
-    description: String,
-    profilePhoto: String
+    type: userProfileSchema,
+    default: () => ({})
+  },
+  aiNotifications: {
+    enabled: { type: Boolean, default: true },
+    emailAlerts: { type: Boolean, default: true },
+    minMatchScore: { type: Number, default: 50, min: 0, max: 100 },
+    matchedSkillsOnly: { type: Boolean, default: false },
+    matchedExperienceOnly: { type: Boolean, default: false },
+    frequency: { type: String, enum: ['immediate', 'daily', 'weekly'], default: 'immediate' },
+    lastNotifiedAt: { type: Date, default: null }
+  },
+  companyAiNotifications: {
+    enabled: { type: Boolean, default: true },
+    emailAlerts: { type: Boolean, default: true },
+    minMatchScore: { type: Number, default: 50, min: 0, max: 100 },
+    notifyOnNewCandidate: { type: Boolean, default: true },
+    frequency: { type: String, enum: ['immediate', 'daily', 'weekly'], default: 'immediate' },
+    lastNotifiedAt: { type: Date, default: null }
+  },
+  lastAiMatchCheck: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true
@@ -183,6 +270,9 @@ userSchema.index({ userType: 1 });
 userSchema.index({ isVerified: 1 });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ loginRestricted: 1 });
+userSchema.index({ 'profile.skills': 1 });
+userSchema.index({ 'profile.location': 1 });
+userSchema.index({ 'profile.yearsOfExperience': 1 });
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) {
@@ -215,6 +305,42 @@ userSchema.methods.getSignedJwtToken = function() {
     JWT_SECRET,
     { expiresIn: '365d' }
   );
+};
+
+userSchema.methods.calculateProfileCompletion = function() {
+  let completed = 0;
+  let total = 12;
+  
+  if (this.name) completed++;
+  if (this.email) completed++;
+  if (this.profile?.phone) completed++;
+  if (this.profile?.location) completed++;
+  if (this.profile?.title) completed++;
+  if (this.profile?.bio) completed++;
+  if (this.profile?.skills?.length > 0) completed++;
+  if (this.profile?.experience) completed++;
+  if (this.profile?.education) completed++;
+  if (this.profile?.resume?.url) completed++;
+  if (this.profile?.linkedin) completed++;
+  if (this.profile?.github) completed++;
+  
+  return Math.round((completed / total) * 100);
+};
+
+userSchema.methods.toProfileJSON = function() {
+  const obj = this.toObject();
+  delete obj.password;
+  delete obj.loginHistory;
+  delete obj.activityLog;
+  delete obj.pendingEmailVerificationCode;
+  delete obj.pendingEmailVerificationExpire;
+  delete obj.pendingVerificationData;
+  
+  obj.profileCompletionPercentage = this.calculateProfileCompletion();
+  obj.isProfileComplete = obj.profileCompletionPercentage >= 80;
+  obj.lastProfileUpdate = this.updatedAt;
+  
+  return obj;
 };
 
 module.exports = mongoose.models.User || mongoose.model('User', userSchema);

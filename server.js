@@ -55,6 +55,10 @@ const connectDB = async () => {
       console.log('ℹ️  Cleanup not necessary');
     }
     
+    console.log('🚀 Starting AI Matching Scheduler...');
+    const aiMatchingScheduler = require('./services/aiMatchingScheduler');
+    aiMatchingScheduler.start();
+    
   } catch (error) {
     console.error('❌ Database connection error:', error.message);
     process.exit(1);
@@ -499,45 +503,30 @@ const companyOnly = (req, res, next) => {
 // ========================
 // EMAIL CONFIGURATION
 // ========================
+let transporter = null;
+
 const createTransporter = () => {
-  // Development mode - no email credentials
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.log('🔧 Development mode: Emails will be logged to console');
-    
+    console.log('📧 Email: Development mode - emails will be logged to console');
     return {
       sendMail: async (mailOptions) => {
-        console.log('\n📧 DEVELOPMENT MODE - Email would be sent:');
-        console.log('   From:', process.env.EMAIL_USER || 'noreply@missionhub.com');
+        console.log('\n📧 Email would be sent:');
         console.log('   To:', mailOptions.to);
         console.log('   Subject:', mailOptions.subject);
-        
-        // Extract verification/reset code from HTML
         const codeMatch = mailOptions.html?.match(/\d{6}/);
         if (codeMatch) {
           console.log('   🔑 CODE:', codeMatch[0]);
-          console.log('   📝 Copy this code to verify or reset');
         }
-        
         console.log('---\n');
-        
-        return {
-          messageId: 'dev-mode-' + Date.now(),
-          response: 'Development mode - email logged to console'
-        };
+        return { messageId: 'dev-' + Date.now() };
       },
       verify: async () => true
     };
   }
 
-  // Production email configuration with improved settings
   const cleanPassword = process.env.EMAIL_PASS.replace(/\s+/g, '');
   
-  console.log('🔧 Initializing Gmail transporter...');
-  console.log('   Email:', process.env.EMAIL_USER);
-  console.log('   Password length:', cleanPassword.length, 'characters');
-  
-  // Create transporter with improved configuration
-  const transporter = nodemailer.createTransport({
+  return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.EMAIL_USER,
@@ -546,77 +535,38 @@ const createTransporter = () => {
     pool: true,
     maxConnections: 3,
     maxMessages: 5,
-    rateDelta: 1000, // 1000ms between messages
-    rateLimit: 5, // max 5 messages per second
   });
+};
 
-  // Add error handling for transporter
-  transporter.on('idle', () => {
-    console.log('📧 Email transporter is idle');
-  });
-
-  transporter.on('error', (err) => {
-    console.error('❌ Email transporter error:', err);
-  });
-
+const getTransporter = () => {
+  if (!transporter) {
+    transporter = createTransporter();
+  }
   return transporter;
 };
 
-// Initialize email transporter
-const emailTransporter = createTransporter();
-app.set('emailTransporter', emailTransporter);
-
-// ========================
-// EMAIL TEST FUNCTION
-// ========================
-const testEmailConfig = async () => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.log('🎯 Development mode activated');
-    console.log('   Verification codes will be shown in console');
-    console.log('   No actual emails will be sent');
-    return;
-  }
-
+const sendEmail = async (options) => {
+  const { to, subject, html } = options;
+  
+  const transport = getTransporter();
+  
   try {
-    console.log('🧪 Testing email configuration...');
-    await emailTransporter.verify();
-    console.log('✅ Email server is ready to send messages');
-    
-    // Test sending a simple email
-    try {
-      await emailTransporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: process.env.EMAIL_USER,
-        subject: 'Mission Hub - Email Test ✅',
-        text: 'This is a test email from Mission Hub server. If you receive this, email configuration is working correctly!',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <h2 style="color: #2563eb; text-align: center;">✅ Email Test Successful!</h2>
-            <p>This is a test email from Mission Hub server.</p>
-            <p>If you receive this, your email configuration is working correctly!</p>
-            <p><strong>Server Time:</strong> ${new Date().toString()}</p>
-          </div>
-        `
-      });
-      console.log('✅ Test email sent successfully');
-      console.log('📨 Check your inbox for the test email');
-    } catch (testError) {
-      console.log('⚠️  Test email failed:', testError.message);
-    }
-    
+    const info = await transport.sendMail({
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: Array.isArray(to) ? to : to,
+      subject,
+      html,
+    });
+    console.log(`✅ Email sent: ${info.messageId}`);
+    return { messageId: info.messageId };
   } catch (error) {
-    console.error('❌ Email configuration error:', error.message);
-    console.log('\n🔧 REQUIRED FIXES:');
-    console.log('   1. Enable 2-Step Verification in Google Account');
-    console.log('   2. Generate App Password at: https://myaccount.google.com/apppasswords');
-    console.log('   3. Use 16-character App Password (no spaces) in .env file');
-    console.log('   4. Ensure EMAIL_USER is your full Gmail address');
-    console.log('\n💡 QUICK FIX: Remove EMAIL_USER & EMAIL_PASS from .env to use development mode');
+    console.error('❌ Email failed:', error.message);
+    throw error;
   }
 };
 
-// Call email test
-testEmailConfig();
+app.set('emailTransporter', { sendMail: (opts) => sendEmail(opts) });
+app.set('sendEmail', sendEmail);
 
 // ========================
 // IN-MEMORY STORAGE (for verification/reset codes)
@@ -626,44 +576,6 @@ const verificationCodes = new Map();
 function generateVerificationCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
-
-// ========================
-// EMAIL QUEUE SYSTEM
-// ========================
-const emailQueue = [];
-let isProcessingEmails = false;
-
-// Add email to queue
-const queueEmail = (mailOptions, callback) => {
-  emailQueue.push({ mailOptions, callback });
-  processEmailQueue();
-};
-
-// Process email queue with rate limiting
-const processEmailQueue = async () => {
-  if (isProcessingEmails || emailQueue.length === 0) return;
-  
-  isProcessingEmails = true;
-  
-  while (emailQueue.length > 0) {
-    const { mailOptions, callback } = emailQueue.shift();
-    
-    try {
-      // Add delay between emails to avoid rate limiting
-      if (emailQueue.length > 0) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      const result = await emailTransporter.sendMail(mailOptions);
-      callback(null, result);
-    } catch (error) {
-      console.error('❌ Email sending failed:', error.message);
-      callback(error);
-    }
-  }
-  
-  isProcessingEmails = false;
-};
 
 // Helper function to create a notification
 const createNotification = async (userId, type, title, message, options = {}) => {
@@ -730,6 +642,7 @@ const paymentsRoutes = require('./routes/payments');
 const talentPoolRoutes = require('./routes/talent-pool');
 const settingsRoutes = require('./routes/settings');
 const advertisingRoutes = require('./routes/advertising');
+const aiNotificationsRoutes = require('./routes/ai-notifications');
 
 // Mount admin auth routes (before other routes to avoid conflicts)
 app.post('/api/auth/admin/create-super-admin', adminAuthController.createSuperAdmin);
@@ -760,6 +673,7 @@ app.use('/api/talent-pool', talentPoolRoutes);
 app.use('/api/admin/settings', settingsRoutes);
 app.use('/api/advertising', advertisingRoutes);
 app.use('/api/newsletter', require('./routes/newsletter'));
+app.use('/api/ai-notifications', aiNotificationsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -785,43 +699,76 @@ app.post('/api/test-email', async (req, res) => {
       });
     }
 
-    const emailTransporter = req.app.get('emailTransporter');
+    const sendEmail = req.app.get('sendEmail');
     
-    const result = await emailTransporter.sendMail({
-      from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
+    const result = await sendEmail({
       to: testEmail,
-      subject: 'Mission Hub - Test Email ✅',
+      subject: 'Email Configuration Test — MissionHub',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-          <div style="text-align: center; padding: 30px; border-radius: 10px 10px 0 0; color: white;">
-            <h1 style="margin: 0; font-size: 28px;"> Mission Hub</h1>
-            <p style="margin: 10px 0 0 0; opacity: 0.9;">Email Test Successful</p>
-          </div>
-          
-          <div style="padding: 30px;">
-            <h2 style="color: #059669; text-align: center;">✅ Email Configuration Working!</h2>
-            <p>If you're reading this, your Mission Hub email configuration is working correctly.</p>
-            
-            <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin: 20px 0;">
-              <p style="margin: 0; color: #065f46;">
-                <strong>Server Time:</strong> ${new Date().toString()}<br>
-                <strong>Recipient:</strong> ${testEmail}<br>
-                <strong>Status:</strong> <span style="color: #059669;">Active</span>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MissionHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F9FAFB;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
+              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
+              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            </td>
+          </tr>
+          <tr>
+            <td style="height: 4px; background: linear-gradient(90deg, #4F46E5, #7C3AED);"></td>
+          </tr>
+          <tr>
+            <td style="padding: 40px; color: #1F2937;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937; text-align: center;">✅ Email Configuration Working!</h1>
+              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px; text-align: center;">Your MissionHub email is configured correctly</p>
+              
+              <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%); border-left: 4px solid #10B981; padding: 20px; border-radius: 0 12px 12px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #1F2937; font-size: 14px;">
+                  <strong>Server Time:</strong> ${new Date().toString()}<br><br>
+                  <strong>Recipient:</strong> ${testEmail}<br><br>
+                  <strong>Status:</strong> <span style="color: #10B981; font-weight: bold;">Active</span>
+                </p>
+              </div>
+              
+              <p style="color: #6B7280; font-size: 14px; text-align: center; margin-top: 24px;">
+                You can now receive verification codes and other notifications.
               </p>
-            </div>
-            
-            <p style="text-align: center; color: #666;">
-              You can now receive verification codes for user registration.
-            </p>
-          </div>
-        </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="text-align: center;">
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
       `
     });
 
     res.json({
       success: true,
       message: 'Test email sent successfully',
-      messageId: result.messageId
+      messageId: result.id
     });
     
   } catch (error) {
@@ -871,23 +818,72 @@ app.post('/api/auth/resend-code', async (req, res) => {
     const expiresAt = Date.now() + 13 * 60 * 60 * 1000;
     verificationCodes.set(cleanEmail, { code: verificationCode, expiresAt });
 
-    const emailTransporter = req.app.get('emailTransporter');
+    const sendEmail = req.app.get('sendEmail');
     try {
-      await emailTransporter.sendMail({
-        from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
+      await sendEmail({
         to: cleanEmail,
-        subject: 'Your Verification Code - Mission Hub',
+        subject: 'Your Verification Code — MissionHub',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <h2 style="color: #2563eb; text-align: center;">Email Verification</h2>
-            <p>Use the verification code below to verify your email address:</p>
-            <div style="text-align:center; font-size: 28px; letter-spacing: 6px; font-weight: bold;">${verificationCode}</div>
-            <p style="color:#ef4444; text-align:center;">This code expires in 13 hours.</p>
-          </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MissionHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F9FAFB;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
+              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
+              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            </td>
+          </tr>
+          <tr>
+            <td style="height: 4px; background: linear-gradient(90deg, #4F46E5, #7C3AED);"></td>
+          </tr>
+          <tr>
+            <td style="padding: 40px; color: #1F2937;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937;">Email Verification</h1>
+              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px;">Verify your email address</p>
+              
+              <p style="color: #1F2937; line-height: 1.6;">Use the verification code below to verify your email address:</p>
+              
+              <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%); border: 2px dashed #4F46E5; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+                <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">Your Verification Code</p>
+                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #4F46E5; font-family: 'Courier New', monospace;">${verificationCode}</p>
+              </div>
+              
+              <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #92400E; font-size: 14px;">This code will expire in <strong>13 hours</strong>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="text-align: center;">
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
         `
       });
     } catch (e) {
-      console.log('Email send failed (dev mode):', e.message);
+      console.log('Email send failed:', e.message);
     }
 
     return res.json({ success: true, message: 'New verification code sent to your email', expiresIn: 13 });
@@ -930,23 +926,72 @@ app.post('/api/auth/send-code', async (req, res) => {
       verificationCodes.set(cleanEmail, { code: verificationCode, expiresAt });
     }
 
-    const emailTransporter = req.app.get('emailTransporter');
+    const sendEmail = req.app.get('sendEmail');
     try {
-      await emailTransporter.sendMail({
-        from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
+      await sendEmail({
         to: cleanEmail,
-        subject: 'Your Verification Code - Mission Hub',
+        subject: 'Your Verification Code — MissionHub',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <h2 style="color: #2563eb; text-align: center;">Email Verification</h2>
-            <p>Use the verification code below to verify your email address:</p>
-            <div style="text-align:center; font-size: 28px; letter-spacing: 6px; font-weight: bold;">${verificationCode}</div>
-            <p style="color:#ef4444; text-align:center;">This code expires in 13 hours.</p>
-          </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MissionHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F9FAFB;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
+              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
+              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            </td>
+          </tr>
+          <tr>
+            <td style="height: 4px; background: linear-gradient(90deg, #4F46E5, #7C3AED);"></td>
+          </tr>
+          <tr>
+            <td style="padding: 40px; color: #1F2937;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937;">Email Verification</h1>
+              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px;">Verify your email address</p>
+              
+              <p style="color: #1F2937; line-height: 1.6;">Use the verification code below to verify your email address:</p>
+              
+              <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%); border: 2px dashed #4F46E5; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+                <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">Your Verification Code</p>
+                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #4F46E5; font-family: 'Courier New', monospace;">${verificationCode}</p>
+              </div>
+              
+              <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #92400E; font-size: 14px;">This code will expire in <strong>13 hours</strong>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="text-align: center;">
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
         `
       });
     } catch (e) {
-      console.log('Email send failed (dev mode):', e.message);
+      console.log('Email send failed:', e.message);
     }
 
     return res.json({ 
@@ -1203,60 +1248,85 @@ app.post('/api/auth/register', async (req, res) => {
 
     // Skip verification code generation - users are auto-verified
 
-    // Get email transporter
-    const emailTransporter = req.app.get('emailTransporter');
+    // Get sendEmail function
+    const sendEmail = req.app.get('sendEmail');
 
     // Send verification email
     let emailSent = false;
     let emailError = null;
 
     try {
-      const mailResult = await emailTransporter.sendMail({
-        from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
+      const mailResult = await sendEmail({
         to: cleanEmail,
-        subject: 'Verify Your Email - Mission Hub',
+        subject: 'Verify Your Email — MissionHub',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #1b5ff1ff 100%); padding: 30px; border-radius: 10px 10px 0 0; color: white;">
-              <h1 style="margin: 0; font-size: 28px;">Mission Hub</h1>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">Email Verification</p>
-            </div>
-            
-            <div style="padding: 30px;">
-              <h2 style="color: #333; margin-bottom: 20px;">Hello ${name},</h2>
-              <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
-                Welcome to Mission Hub! Use the verification code below to complete your registration:
-              </p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MissionHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F9FAFB;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
+              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
+              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            </td>
+          </tr>
+          <tr>
+            <td style="height: 4px; background: linear-gradient(90deg, #4F46E5, #7C3AED);"></td>
+          </tr>
+          <tr>
+            <td style="padding: 40px; color: #1F2937;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937;">Verify Your Email</h1>
+              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px;">Complete your registration</p>
               
-              <div style="text-align: center; margin: 30px 0;">
-                <div style="display: inline-block; background: #f8fafc; padding: 20px 40px; border: 2px dashed #cbd5e1; border-radius: 10px;">
-                  <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2563eb; font-family: 'Courier New', monospace;">
-                    ${verificationCode}
-                  </div>
-                </div>
+              <p style="color: #1F2937; line-height: 1.6;">Hello <strong>${name}</strong>,</p>
+              <p style="color: #1F2937; line-height: 1.6; margin-bottom: 24px;">Welcome to MissionHub! Thank you for joining us. Please use the verification code below to complete your registration:</p>
+              
+              <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%); border: 2px dashed #4F46E5; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+                <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">Your Verification Code</p>
+                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #4F46E5; font-family: 'Courier New', monospace;">${verificationCode}</p>
               </div>
               
-              <p style="color: #ef4444; line-height: 1.6; margin-bottom: 10px; text-align: center;">
-                <strong>⚠️ This code will expire in 10 minutes</strong>
-              </p>
+              <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #92400E; font-size: 14px;">This code will expire in <strong>10 minutes</strong>. Please verify your email soon.</p>
+              </div>
               
-              <p style="color: #999; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
-                If you didn't create an account with Mission Hub, please ignore this email.
+              <p style="color: #6B7280; font-size: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
+                If you didn't create an account with MissionHub, please ignore this email.
               </p>
-            </div>
-            
-            <div style="background: #f8fafc; padding: 20px; text-align: center; border-radius: 0 0 10px 10px;">
-              <p style="margin: 0; color: #64748b; font-size: 14px;">
-                &copy; ${new Date().getFullYear()} Mission Hub. All rights reserved.
-              </p>
-            </div>
-          </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="text-align: center;">
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
         `
       });
 
       emailSent = true;
       console.log(`✅ Verification email sent to: ${cleanEmail}`);
-      console.log(`   Message ID: ${mailResult.messageId}`);
+      console.log(`   Message ID: ${mailResult.id}`);
       
     } catch (error) {
       emailError = error.message;
@@ -1653,45 +1723,76 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       expiresAt: Date.now() + 30 * 60 * 1000 // 30 minutes
     });
 
-    // Get email transporter
-    const emailTransporter = req.app.get('emailTransporter');
+    // Get sendEmail function
+    const sendEmail = req.app.get('sendEmail');
 
     // Send reset email
     try {
-      await emailTransporter.sendMail({
-        from: process.env.EMAIL_USER || 'Mission Hub <noreply@missionhub.com>',
+      await sendEmail({
         to: cleanEmail,
-        subject: 'Reset Your Password - Mission Hub',
+        subject: 'Reset Your Password — MissionHub',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <div style="text-align: center; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px; border-radius: 10px 10px 0 0; color: white;">
-              <h1 style="margin: 0; font-size: 28px;">🔐 Mission Hub</h1>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">Password Reset</p>
-            </div>
-            
-            <div style="padding: 30px;">
-              <h2 style="color: #333; margin-bottom: 20px;">Hello ${user.name},</h2>
-              <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
-                We received a request to reset your password. Use the code below to reset it:
-              </p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MissionHub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F9FAFB;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%); padding: 32px 40px; text-align: center;">
+              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px; filter: brightness(0) invert(1);">
+              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            </td>
+          </tr>
+          <tr>
+            <td style="height: 4px; background: linear-gradient(90deg, #DC2626, #991B1B);"></td>
+          </tr>
+          <tr>
+            <td style="padding: 40px; color: #1F2937;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937;">Reset Your Password</h1>
+              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px;">We received a password reset request</p>
               
-              <div style="text-align: center; margin: 30px 0;">
-                <div style="display: inline-block; background: #fef2f2; padding: 20px 40px; border: 2px dashed #fecaca; border-radius: 10px;">
-                  <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #dc2626; font-family: 'Courier New', monospace;">
-                    ${resetCode}
-                  </div>
-                </div>
+              <p style="color: #1F2937; line-height: 1.6;">Hello <strong>${user.name}</strong>,</p>
+              <p style="color: #1F2937; line-height: 1.6; margin-bottom: 24px;">We received a request to reset your MissionHub password. Use the code below to complete the process:</p>
+              
+              <div style="background: linear-gradient(135deg, rgba(220, 38, 38, 0.08) 0%, rgba(153, 27, 27, 0.08) 100%); border: 2px dashed #DC2626; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+                <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">Your Password Reset Code</p>
+                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #DC2626; font-family: 'Courier New', monospace;">${resetCode}</p>
               </div>
               
-              <p style="color: #ef4444; line-height: 1.6; margin-bottom: 10px; text-align: center;">
-                <strong>⚠️ This code will expire in 30 minutes</strong>
-              </p>
+              <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #92400E; font-size: 14px;">This code will expire in <strong>30 minutes</strong>. If you didn't request this, please ignore this email.</p>
+              </div>
               
-              <p style="color: #999; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
-                If you didn't request a password reset, please ignore this email.
+              <p style="color: #6B7280; font-size: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
+                For your security, never share this code with anyone. MissionHub staff will never ask for your verification code.
               </p>
-            </div>
-          </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="text-align: center;">
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
         `
       });
       console.log(`✅ Password reset email sent to: ${cleanEmail}`);
@@ -2372,6 +2473,41 @@ app.post('/api/upload/logo', protect, companyOnly, uploadLogo.single('logo'), as
     res.status(500).json({
       success: false,
       message: 'Server error while uploading logo'
+    });
+  }
+});
+
+// ========================
+// PROFILE PHOTO UPLOAD ROUTE
+// ========================
+
+// Upload profile photo endpoint
+app.post('/api/upload/profile-photo', protect, uploadImage.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No photo file provided'
+      });
+    }
+
+    const photoUrl = `/uploads/${req.file.filename}`;
+
+    await User.findByIdAndUpdate(
+      req.user.id,
+      { 'profile.profilePhoto': photoUrl }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile photo uploaded successfully',
+      photoUrl
+    });
+  } catch (error) {
+    console.error('Profile photo upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while uploading profile photo'
     });
   }
 });
@@ -3110,6 +3246,14 @@ app.post('/api/applications', protect, async (req, res) => {
       });
     }
 
+    // Check if job is closed
+    if (job.status === 'closed') {
+      return res.status(400).json({
+        success: false,
+        message: 'This job is no longer accepting applications'
+      });
+    }
+
     // Check if user has already applied
     const existingApplication = await Application.findOne({
       jobId,
@@ -3288,192 +3432,8 @@ app.get('/api/applications/for-my-jobs', protect, async (req, res) => {
   }
 });
 
-// Update application status
-app.put('/api/applications/:id/status', protect, companyOnly, async (req, res) => {
-  try {
-    const { status, notes, sendEmail: shouldSendEmail = true, sendInApp: shouldSendInApp = true, customMessage, subject } = req.body;
-
-    if (!status || !['pending', 'reviewed', 'approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Valid status is required' });
-    }
-
-    const application = await Application.findById(req.params.id).populate('jobId').populate('userId');
-
-    if (!application) {
-      return res.status(404).json({ success: false, message: 'Application not found' });
-    }
-
-    if (application.jobId && application.jobId.postedBy && application.jobId.postedBy.toString() !== req.user.id && application.companyId?.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'Not authorized to update this application' });
-    }
-
-    const previousStatus = application.status;
-    application.status = status;
-    if (notes !== undefined) application.notes = notes;
-    await application.save();
-
-    const applicant = await User.findById(application.userId?._id || application.userId);
-    const jobTitle = application.jobId?.title || application.jobTitle || 'the position';
-    const companyName = application.company || 'the company';
-    const applicantName = applicant?.name || 'Applicant';
-
-    const result = {
-      applicationUpdated: true,
-      inAppNotificationSent: false,
-      emailSent: false,
-      inAppNotificationError: null,
-      emailError: null
-    };
-
-    if (shouldSendInApp !== false && applicant) {
-      try {
-        const Notification = require('./models/Notification');
-        let notificationTitle = '';
-        let notificationMessage = customMessage || '';
-        let priority = 'normal';
-
-        switch (status) {
-          case 'reviewed':
-            notificationTitle = 'Application Under Review';
-            if (!notificationMessage) notificationMessage = `Your application for ${jobTitle} at ${companyName} is being reviewed.`;
-            break;
-          case 'approved':
-            notificationTitle = 'Application Approved!';
-            if (!notificationMessage) notificationMessage = `Great news! Your application for ${jobTitle} at ${companyName} has been approved. Contact will be made shortly.`;
-            priority = 'high';
-            break;
-          case 'rejected':
-            notificationTitle = 'Application Update';
-            if (!notificationMessage) notificationMessage = `Your application for ${jobTitle} at ${companyName} has been updated.`;
-            break;
-          default:
-            notificationTitle = 'Application Status Updated';
-            if (!notificationMessage) notificationMessage = `Your application for ${jobTitle} has been updated to ${status}.`;
-        }
-
-        await Notification.create({
-          userId: applicant._id,
-          type: 'application_update',
-          title: notificationTitle,
-          message: notificationMessage,
-          priority,
-          senderType: 'company',
-          read: false,
-          applicationDetails: { applicationId: application._id, jobTitle, companyName, previousStatus, newStatus: status },
-          relatedId: application._id,
-          relatedType: 'application'
-        });
-        result.inAppNotificationSent = true;
-        console.log(`✅ In-app notification sent to ${applicant.email}`);
-      } catch (notifyError) {
-        result.inAppNotificationError = notifyError.message;
-        console.error('❌ In-app notification error:', notifyError.message);
-      }
-    }
-
-    if (shouldSendEmail !== false && applicant?.email) {
-      try {
-        const emailService = require('./services/emailService');
-        let emailSubject = subject || '';
-        let emailHtml = '';
-
-        if (customMessage) {
-          emailSubject = subject || `Update on Your Application for ${jobTitle}`;
-          emailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-                <h2 style="color: white; margin: 0;">Application Update</h2>
-              </div>
-              <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-                <p style="color: #333;">Dear ${applicantName},</p>
-                <div style="background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea;">
-                  ${customMessage.replace(/\n/g, '<br/>')}
-                </div>
-                <p style="color: #666;">Best regards,<br/>${companyName} Team</p>
-              </div>
-            </div>
-          `;
-        } else {
-          switch (status) {
-            case 'approved':
-              emailSubject = `Congratulations! Your Application for ${jobTitle} Has Been Approved!`;
-              emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-                    <h2 style="color: white; margin: 0;">Congratulations!</h2>
-                  </div>
-                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-                    <p style="color: #333;">Dear ${applicantName},</p>
-                    <p style="color: #333;">We are thrilled to inform you that your application for <strong>${jobTitle}</strong> at <strong>${companyName}</strong> has been <strong style="color: #10B981;">APPROVED</strong>!</p>
-                    <p style="color: #666;">The company will reach out to you shortly with next steps.</p>
-                    <p style="color: #666;">Best regards,<br/>The ${companyName} Team</p>
-                  </div>
-                </div>
-              `;
-              break;
-            case 'rejected':
-              emailSubject = `Application Update for ${jobTitle}`;
-              emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-                    <h2 style="color: white; margin: 0;">Application Update</h2>
-                  </div>
-                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-                    <p style="color: #333;">Dear ${applicantName},</p>
-                    <p style="color: #333;">Thank you for your interest in <strong>${jobTitle}</strong> at <strong>${companyName}</strong>.</p>
-                    <p style="color: #666;">After careful consideration, we have decided to proceed with other candidates.</p>
-                    <p style="color: #666;">Best regards,<br/>The ${companyName} Team</p>
-                  </div>
-                </div>
-              `;
-              break;
-            default:
-              emailSubject = `Your Application for ${jobTitle} is Under Review`;
-              emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-                    <h2 style="color: white; margin: 0;">Application Under Review</h2>
-                  </div>
-                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-                    <p style="color: #333;">Dear ${applicantName},</p>
-                    <p style="color: #333;">Your application for <strong>${jobTitle}</strong> is now being reviewed.</p>
-                    <p style="color: #666;">Best regards,<br/>The ${companyName} Team</p>
-                  </div>
-                </div>
-              `;
-          }
-        }
-
-        if (emailSubject && emailHtml) {
-          const emailResult = await emailService.sendEmail({ email: applicant.email, subject: emailSubject, message: emailHtml });
-          result.emailSent = emailResult;
-          if (emailResult) {
-            console.log(`✅ Email sent successfully to ${applicant.email}`);
-          } else {
-            result.emailError = 'Email service returned false';
-          }
-        }
-      } catch (emailError) {
-        result.emailError = emailError.message;
-        console.error('❌ Email sending error:', emailError.message);
-      }
-    }
-
-    let message = `Application ${status}`;
-    if (result.inAppNotificationSent) message += ', In-app notification sent';
-    if (result.emailSent) message += ', Email sent';
-
-    console.log(`\n📋 Application Status: ${previousStatus} → ${status}`);
-    console.log(`   Applicant: ${applicantName}`);
-    console.log(`   In-App: ${result.inAppNotificationSent ? '✅' : '❌'}`);
-    console.log(`   Email: ${result.emailSent ? '✅' : '❌'}`);
-
-    res.json({ success: true, message, data: application, notificationResult: result });
-  } catch (error) {
-    console.error('❌ Update application status error:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-  }
-});
+// Update application status - NOW HANDLED BY routes/applications.js router
+// See routes/applications.js for the actual implementation
 
 // Cancel application
 app.delete('/api/applications/:id', protect, async (req, res) => {
@@ -3488,7 +3448,7 @@ app.delete('/api/applications/:id', protect, async (req, res) => {
     }
 
     // Check if user owns the application
-    if (application.userId.toString() !== req.user.id) {
+    if (application.userId.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to cancel this application'
@@ -3723,13 +3683,13 @@ app.post('/api/notifications/send-email', protect, companyOnly, async (req, res)
     }
 
     try {
-      const info = await emailTransporter.sendMail({
-        from: `"Mission Hub" <${process.env.EMAIL_USER || 'noreply@missionhub.com'}>`,
+      const sendEmail = req.app.get('sendEmail');
+      const info = await sendEmail({
         to: toEmail,
         subject: subject,
         html: emailHtml
       });
-      console.log('Email sent:', info.messageId);
+      console.log('Email sent:', info.id);
     } catch (emailError) {
       console.log('Email service not available:', emailError.message);
     }

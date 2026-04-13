@@ -29,7 +29,9 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.1",
     "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
     "nodemailer": "^7.0.9",
+    "resend": "^6.10.0",
     "validator": "^13.15.15",
     "websocket": "^1.0.35",
     "ws": "^8.20.0"

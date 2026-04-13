@@ -390,7 +390,9 @@ router.get('/types', protect, async (req, res) => {
       job_application: { label: 'Job Application', icon: 'Send', color: 'bg-cyan-500' },
       verified: { label: 'Verified', icon: 'CheckCircle2', color: 'bg-green-500' },
       user: { label: 'User', icon: 'User', color: 'bg-blue-500' },
-      company: { label: 'Company', icon: 'Building2', color: 'bg-indigo-500' }
+      company: { label: 'Company', icon: 'Building2', color: 'bg-indigo-500' },
+      ai_job_match: { label: 'AI Job Match', icon: 'Sparkles', color: 'bg-violet-500' },
+      ai_candidate_match: { label: 'AI Candidate Match', icon: 'Sparkles', color: 'bg-violet-500' }
     };
     
     const types = typeEnum.map(type => ({
@@ -471,6 +473,118 @@ router.get('/unread/count', protect, async (req, res) => {
     res.json({ 
       success: true, 
       data: { count: 0 } 
+    });
+  }
+});
+
+// Get all counts (notifications + messages)
+router.get('/counts', protect, async (req, res) => {
+  try {
+    const Notification = require('../models/Notification');
+    const Message = require('../models/Message');
+
+    const [
+      unreadNotifications,
+      totalNotifications,
+      unreadMessages,
+      totalMessages,
+      unreadApplications,
+      totalApplications,
+      unreadInterviews
+    ] = await Promise.all([
+      Notification.countDocuments({ userId: req.user._id, read: false }),
+      Notification.countDocuments({ userId: req.user._id }),
+      Message.countDocuments({ toUserId: req.user._id, read: false }),
+      Message.countDocuments({ toUserId: req.user._id }),
+      Notification.countDocuments({ 
+        userId: req.user._id, 
+        type: 'job_application',
+        read: false 
+      }),
+      Notification.countDocuments({ 
+        userId: req.user._id, 
+        type: 'job_application' 
+      }),
+      Notification.countDocuments({ 
+        userId: req.user._id, 
+        type: { $in: ['interview', 'interview_scheduled', 'interview_reminder'] },
+        read: false 
+      })
+    ]);
+
+    const totalUnread = unreadNotifications + unreadMessages;
+    const totalAll = totalNotifications + totalMessages;
+
+    res.json({
+      success: true,
+      counts: {
+        notifications: {
+          unread: unreadNotifications,
+          total: totalNotifications
+        },
+        messages: {
+          unread: unreadMessages,
+          total: totalMessages
+        },
+        applications: {
+          unread: unreadApplications,
+          total: totalApplications
+        },
+        interviews: {
+          unread: unreadInterviews
+        },
+        total: {
+          unread: totalUnread,
+          all: totalAll
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get counts error:', error);
+    res.json({
+      success: true,
+      counts: {
+        notifications: { unread: 0, total: 0 },
+        messages: { unread: 0, total: 0 },
+        applications: { unread: 0, total: 0 },
+        interviews: { unread: 0 },
+        total: { unread: 0, all: 0 }
+      }
+    });
+  }
+});
+
+// Get summary counts for dashboard
+router.get('/summary', protect, async (req, res) => {
+  try {
+    const Notification = require('../models/Notification');
+    const Message = require('../models/Message');
+
+    const [
+      unreadNotifications,
+      unreadMessages
+    ] = await Promise.all([
+      Notification.countDocuments({ userId: req.user._id, read: false }),
+      Message.countDocuments({ toUserId: req.user._id, read: false })
+    ]);
+
+    res.json({
+      success: true,
+      summary: {
+        unreadNotifications,
+        unreadMessages,
+        totalUnread: unreadNotifications + unreadMessages
+      }
+    });
+  } catch (error) {
+    console.error('Get summary error:', error);
+    res.json({
+      success: true,
+      summary: {
+        unreadNotifications: 0,
+        unreadMessages: 0,
+        totalUnread: 0
+      }
     });
   }
 });

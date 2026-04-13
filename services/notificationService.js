@@ -392,6 +392,113 @@ const NotificationService = {
       priority,
       senderType: 'system'
     });
+  },
+
+  async aiJobMatch(userId, job, matchScore, matchingSkills, matchingExperience) {
+    const title = matchScore >= 70 
+      ? `Perfect Match: ${job.title}` 
+      : `New Job Match: ${job.title}`;
+    
+    const message = this.buildAiJobMatchMessage(job, matchScore, matchingSkills, matchingExperience);
+    const priority = matchScore >= 80 ? 'high' : matchScore >= 60 ? 'normal' : 'low';
+
+    return this.create({
+      userId,
+      type: 'ai_job_match',
+      title,
+      message,
+      priority,
+      senderType: 'system',
+      jobDetails: {
+        jobId: job._id || job.jobId,
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        type: job.type,
+        salary: job.salary,
+        experience: job.experience,
+        skills: job.skills,
+        matchScore: matchScore,
+        matchingSkills: matchingSkills,
+        matchingExperience: matchingExperience
+      },
+      relatedId: job._id || job.jobId,
+      relatedType: 'job'
+    });
+  },
+
+  async aiCandidateMatch(companyUserId, candidate, job, matchScore, matchingSkills, matchingExperience) {
+    const candidateName = candidate.name || candidate.candidateName || 'Anonymous Candidate';
+    const title = matchScore >= 70 
+      ? `Strong Candidate Match: ${candidateName}` 
+      : `New Candidate Match for ${job.title}`;
+    
+    const message = this.buildAiCandidateMatchMessage(candidate, job, matchScore, matchingSkills, matchingExperience);
+    const priority = matchScore >= 80 ? 'high' : matchScore >= 60 ? 'normal' : 'low';
+
+    return this.create({
+      userId: companyUserId,
+      type: 'ai_candidate_match',
+      title,
+      message,
+      priority,
+      senderType: 'system',
+      jobDetails: {
+        jobId: job._id || job.jobId,
+        title: job.title,
+        matchScore: matchScore,
+        matchingSkills: matchingSkills,
+        matchingExperience: matchingExperience
+      },
+      applicationDetails: {
+        candidateId: candidate._id || candidate.candidateId,
+        candidateName: candidateName,
+        candidateEmail: candidate.email || candidate.candidateEmail,
+        candidateTitle: candidate.profile?.title || candidate.candidateTitle,
+        candidateSkills: candidate.profile?.skills || candidate.candidateSkills,
+        candidateExperience: candidate.profile?.experience || candidate.candidateExperience
+      },
+      relatedId: candidate._id || candidate.candidateId,
+      relatedType: 'candidate'
+    });
+  },
+
+  buildAiJobMatchMessage(job, matchScore, matchingSkills, matchingExperience) {
+    let message = `Our AI found a ${matchScore}% match for you! `;
+    
+    if (matchingSkills && matchingSkills.length > 0) {
+      message += `Your skills (${matchingSkills.slice(0, 3).join(', ')}) match this job. `;
+    }
+    
+    if (matchingExperience) {
+      message += `Your experience level aligns well. `;
+    }
+    
+    message += job.company ? `This position is at ${job.company}. ` : '';
+    message += job.location ? `Location: ${job.location}. ` : '';
+    message += job.salary ? `Salary: ${job.salary}. ` : '';
+    message += `Apply now to take advantage of this opportunity!`;
+    
+    return message;
+  },
+
+  buildAiCandidateMatchMessage(candidate, job, matchScore, matchingSkills, matchingExperience) {
+    const candidateName = candidate.name || candidate.candidateName || 'This candidate';
+    let message = `Our AI found a ${matchScore}% match for your job "${job.title}"! `;
+    
+    if (matchingSkills && matchingSkills.length > 0) {
+      message += `This candidate has matching skills: ${matchingSkills.slice(0, 3).join(', ')}. `;
+    }
+    
+    if (matchingExperience) {
+      message += `Their experience level matches your requirements. `;
+    }
+    
+    message += candidate.profile?.title || candidate.candidateTitle ? `Title: ${candidate.profile?.title || candidate.candidateTitle}. ` : '';
+    message += candidate.profile?.yearsOfExperience || candidate.candidateExperience ? `Experience: ${candidate.profile?.yearsOfExperience || candidate.candidateExperience} years. ` : '';
+    message += `Review their profile to learn more!`;
+    
+    return message;
   }
 };
 

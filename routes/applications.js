@@ -55,7 +55,7 @@ router.get('/', protect, async (req, res) => {
 // Get user's applications
 router.get('/my-applications', protect, async (req, res) => {
   try {
-    const applications = await Application.find({ userId: req.user.id })
+    const applications = await Application.find({ userId: req.user._id })
       .populate('jobId', 'title company location type salary')
       .sort({ createdAt: -1 })
       .lean();
@@ -70,7 +70,7 @@ router.get('/my-applications', protect, async (req, res) => {
 // Get company applications (for companies)
 router.get('/company', protect, companyOnly, async (req, res) => {
   try {
-    const jobs = await Job.find({ postedBy: req.user.id }).select('_id').lean();
+    const jobs = await Job.find({ postedBy: req.user._id }).select('_id').lean();
     const jobIds = jobs.map(job => job._id);
 
     const applications = await Application.find({ jobId: { $in: jobIds } })
@@ -106,7 +106,7 @@ router.get('/company', protect, companyOnly, async (req, res) => {
 // Get applications for user's jobs
 router.get('/for-my-jobs', protect, companyOnly, async (req, res) => {
   try {
-    const jobs = await Job.find({ postedBy: req.user.id }).select('_id').lean();
+    const jobs = await Job.find({ postedBy: req.user._id }).select('_id').lean();
     const jobIds = jobs.map(job => job._id);
 
     const applications = await Application.find({ jobId: { $in: jobIds } })
@@ -209,18 +209,23 @@ router.post('/', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Job not found' });
     }
 
-    const existingApplication = await Application.findOne({ jobId, userId: req.user.id });
+    // Check if job is closed
+    if (job.status === 'closed') {
+      return res.status(400).json({ success: false, message: 'This job is no longer accepting applications' });
+    }
+
+    const existingApplication = await Application.findOne({ jobId, userId: req.user._id });
     if (existingApplication) {
       return res.status(400).json({ success: false, message: 'You have already applied to this job' });
     }
 
-    const user = await User.findById(req.user.id).select('profile').lean();
+    const user = await User.findById(req.user._id).select('profile').lean();
     const profileResume = user?.profile?.resume || null;
     const applicationResume = resume || profileResume;
 
     const application = await Application.create({
       jobId,
-      userId: req.user.id,
+      userId: req.user._id,
       jobTitle: job.title,
       company: job.company,
       applicantName: req.user.name,
@@ -234,11 +239,103 @@ router.post('/', protect, async (req, res) => {
 
     await Job.findByIdAndUpdate(jobId, { $inc: { applicants: 1 } });
 
+    // Send notification to company
+    const companyUserId = job.companyId || job.postedBy;
+    if (companyUserId) {
+      try {
+        await Notification.create({
+          userId: companyUserId,
+          type: 'job_application',
+          title: 'New Job Application',
+          message: `${req.user.name || 'A candidate'} has applied for ${job.title}. View their application now!`,
+          priority: 'high',
+          senderType: 'user',
+          senderId: req.user._id,
+          jobDetails: {
+            jobId: job._id,
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            type: job.type
+          },
+          applicationDetails: {
+            applicationId: application._id,
+            jobTitle: job.title,
+            applicantName: req.user.name,
+            applicantEmail: req.user.email,
+            applicantTitle: user?.profile?.title,
+            applicantSkills: user?.profile?.skills,
+            applicantExperience: user?.profile?.experience,
+            applicantLocation: user?.profile?.location,
+            applicantYearsOfExperience: user?.profile?.yearsOfExperience
+          },
+          relatedId: application._id,
+          relatedType: 'application'
+        });
+
+        // Send email to company
+        const applicantSkills = user?.profile?.skills || [];
+        const skillsText = applicantSkills.length > 0 
+          ? `<p><strong>Skills:</strong> ${applicantSkills.slice(0, 5).join(', ')}</p>` 
+          : '';
+
+        const emailHtml = `
+          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+            <div style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center;">
+              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
+              <h2 style="color: white; margin: 0; font-size: 22px;">New Job Application</h2>
+            </div>
+            <div style="padding: 30px;">
+              <p style="color: #1f2937; font-size: 16px;">Hello,</p>
+              <p style="color: #1f2937; font-size: 16px;"><strong>${req.user.name || 'A candidate'}</strong> has applied for the position of <strong>${job.title}</strong>.</p>
+              
+              <div style="background: #F3F4F6; border-radius: 12px; padding: 20px; margin: 20px 0;">
+                <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">Applicant Details</h3>
+                <p style="color: #6B7280; margin: 5px 0; font-size: 14px;">
+                  <strong>Name:</strong> ${req.user.name || 'Not provided'}
+                </p>
+                <p style="color: #6B7280; margin: 5px 0; font-size: 14px;">
+                  <strong>Email:</strong> ${req.user.email}
+                </p>
+                ${user?.profile?.title ? `<p style="color: #6B7280; margin: 5px 0; font-size: 14px;"><strong>Title:</strong> ${user.profile.title}</p>` : ''}
+                ${user?.profile?.location ? `<p style="color: #6B7280; margin: 5px 0; font-size: 14px;"><strong>Location:</strong> ${user.profile.location}</p>` : ''}
+                ${user?.profile?.yearsOfExperience ? `<p style="color: #6B7280; margin: 5px 0; font-size: 14px;"><strong>Experience:</strong> ${user.profile.yearsOfExperience} years</p>` : ''}
+                ${skillsText}
+              </div>
+              
+              <div style="text-align: center; margin: 25px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/company/applications/${application._id}" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; text-decoration: none; font-weight: 600; border-radius: 8px;">View Application</a>
+              </div>
+            </div>
+            <div style="background: #F9FAFB; padding: 20px; text-align: center; border-top: 1px solid #E5E7EB;">
+              <p style="color: #9CA3AF; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+            </div>
+          </div>
+        `;
+
+        const companyUser = await User.findById(companyUserId);
+        if (companyUser?.email) {
+          await emailService.sendEmail({
+            email: companyUser.email,
+            subject: `New Application for ${job.title} - ${req.user.name || 'Candidate'}`,
+            message: emailHtml
+          });
+          console.log(`✅ Application notification email sent to company: ${companyUser.email}`);
+        }
+      } catch (notifError) {
+        console.error('Error sending application notification:', notifError.message);
+      }
+    }
+
     const populatedApplication = await Application.findById(application._id)
       .populate('jobId', 'title company')
       .populate('userId', 'name email profile');
 
-    res.status(201).json({ success: true, data: populatedApplication });
+    res.status(201).json({ 
+      success: true, 
+      data: populatedApplication,
+      message: 'Application submitted successfully. The company has been notified.'
+    });
   } catch (error) {
     console.error('Submit application error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -249,6 +346,11 @@ router.post('/', protect, async (req, res) => {
 router.put('/:id/status', protect, companyOnly, async (req, res) => {
   try {
     const { status, notes, sendEmail: shouldSendEmail = true, sendInApp: shouldSendInApp = true, customMessage, subject } = req.body;
+
+    console.log('\n=== PUT /api/applications/:id/status ===');
+    console.log('Application ID:', req.params.id);
+    console.log('Status:', status);
+    console.log('User:', req.user._id);
 
     // Validate status
     if (!status || !['pending', 'reviewed', 'approved', 'rejected'].includes(status)) {
@@ -267,11 +369,21 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
     const application = await Application.findById(req.params.id).populate('jobId').populate('userId');
 
     if (!application) {
+      console.log('Application not found');
       return res.status(404).json({ success: false, message: 'Application not found' });
     }
 
-    // Check authorization
-    if (application.jobId && application.jobId.postedBy && application.jobId.postedBy.toString() !== req.user.id && application.companyId?.toString() !== req.user.id) {
+    console.log('Application found:', application._id);
+    console.log('Job postedBy:', application.jobId?.postedBy);
+    console.log('CompanyId:', application.companyId);
+
+    // Check authorization - handle null/undefined postedBy safely
+    const userId = req.user._id.toString();
+    const postedBy = application.jobId?.postedBy ? application.jobId.postedBy.toString() : null;
+    const companyId = application.companyId ? application.companyId.toString() : null;
+    
+    if (postedBy && postedBy !== userId && companyId !== userId) {
+      console.log('Auth failed:', { userId, postedBy, companyId });
       return res.status(403).json({ success: false, message: 'Not authorized to update this application' });
     }
 
@@ -282,8 +394,11 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
     if (notes) application.notes = notes;
     await application.save();
 
-    // Get applicant info
-    const applicant = await User.findById(application.userId?._id || application.userId);
+    console.log('Application updated, prev:', previousStatus, 'new:', status);
+
+    // Get applicant info - handle both populated and non-populated cases
+    const applicantId = application.userId?._id || application.userId;
+    const applicant = await User.findById(applicantId);
 
     if (!applicant) {
       return res.status(404).json({ success: false, message: 'Applicant user not found' });
@@ -300,39 +415,39 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
       emailSent: false,
       inAppNotificationError: null,
       emailError: null
-    };
+};
 
     // Send in-app notification
     if (shouldSendInApp && shouldSendInApp !== false) {
+      let notificationTitle = '';
+      let notificationMessage = '';
+      let notificationPriority = 'normal';
+
+      switch (status) {
+        case 'reviewed':
+          notificationTitle = 'Application Under Review';
+          notificationMessage = `Your application for ${jobTitle} at ${companyName} is being reviewed.`;
+          break;
+        case 'approved':
+          notificationTitle = 'Application Approved!';
+          notificationMessage = `Great news! Your application for ${jobTitle} at ${companyName} has been approved. Contact will be made shortly.`;
+          notificationPriority = 'high';
+          break;
+        case 'rejected':
+          notificationTitle = 'Application Update';
+          notificationMessage = `Your application for ${jobTitle} at ${companyName} has been updated.`;
+          break;
+        default:
+          notificationTitle = 'Application Status Updated';
+          notificationMessage = `Your application for ${jobTitle} has been updated to ${status}.`;
+      }
+
+      // Use custom message if provided
+      if (customMessage) {
+        notificationMessage = customMessage;
+      }
+
       try {
-        let notificationTitle = '';
-        let notificationMessage = '';
-        let notificationPriority = 'normal';
-
-        switch (status) {
-          case 'reviewed':
-            notificationTitle = 'Application Under Review';
-            notificationMessage = `Your application for ${jobTitle} at ${companyName} is being reviewed.`;
-            break;
-          case 'approved':
-            notificationTitle = 'Application Approved!';
-            notificationMessage = `Great news! Your application for ${jobTitle} at ${companyName} has been approved. Contact will be made shortly.`;
-            notificationPriority = 'high';
-            break;
-          case 'rejected':
-            notificationTitle = 'Application Update';
-            notificationMessage = `Your application for ${jobTitle} at ${companyName} has been updated.`;
-            break;
-          default:
-            notificationTitle = 'Application Status Updated';
-            notificationMessage = `Your application for ${jobTitle} has been updated to ${status}.`;
-        }
-
-        // Use custom message if provided
-        if (customMessage) {
-          notificationMessage = customMessage;
-        }
-
         await Notification.create({
           userId: applicant._id,
           type: 'application_update',
@@ -344,20 +459,17 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
           applicationDetails: {
             applicationId: application._id,
             jobTitle: jobTitle,
-            companyName: companyName,
+            applicantName: applicantName,
             previousStatus: previousStatus,
             newStatus: status
           },
           relatedId: application._id,
           relatedType: 'application'
         });
-
         result.inAppNotificationSent = true;
-        console.log(`✅ In-app notification sent to ${applicant.email}`);
-
-      } catch (notifyError) {
-        result.inAppNotificationError = notifyError.message;
-        console.error('❌ In-app notification error:', notifyError.message);
+      } catch (notifError) {
+        console.error('Failed to create notification:', notifError.message);
+        result.inAppNotificationError = notifError.message;
       }
     }
 
@@ -371,18 +483,22 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
         if (customMessage) {
           emailSubject = subject || `Update on Your Application for ${jobTitle}`;
           emailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-                <h2 style="color: white; margin: 0;">Application Update</h2>
-              </div>
-              <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-                <p style="color: #333;">Dear ${applicantName},</p>
-                <div style="background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea;">
-                  ${customMessage.replace(/\n/g, '<br/>')}
-                </div>
-                <p style="color: #666; font-size: 14px;">Best regards,<br/>${companyName} Team</p>
-              </div>
-            </div>
+<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+  <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 40px 30px; text-align: center;">
+    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
+    <h2 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Application Update</h2>
+  </div>
+  <div style="padding: 40px 30px;">
+    <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
+    <div style="background: #f3f4f6; border-radius: 12px; padding: 20px; margin: 20px 0; border-left: 4px solid #6366f1;">
+      <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0;">${customMessage.replace(/\n/g, '</p><p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0;">')}</p>
+    </div>
+    <p style="color: #9ca3af; font-size: 13px; margin: 30px 0 0;">Best regards,<br/><strong style="color: #1f2937;">The ${companyName} Team</strong></p>
+  </div>
+  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+    <p style="color: #9ca3af; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+  </div>
+</div>
           `;
         } else {
           // Use status-specific templates
@@ -390,52 +506,69 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
             case 'reviewed':
               emailSubject = `Your Application for ${jobTitle} is Under Review`;
               emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-                    <h2 style="color: white; margin: 0;">Application Under Review</h2>
-                  </div>
-                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-                    <p style="color: #333;">Dear ${applicantName},</p>
-                    <p style="color: #333;">Great news! Your application for the position of <strong>${jobTitle}</strong> at <strong>${companyName}</strong> is now being reviewed by the hiring team.</p>
-                    <p style="color: #666;">We will keep you updated on any further progress.</p>
-                    <p style="color: #666;">Best regards,<br/>The Hiring Team</p>
-                  </div>
-                </div>
+<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+  <div style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); padding: 40px 30px; text-align: center;">
+    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
+    <h2 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Application Under Review</h2>
+  </div>
+  <div style="padding: 40px 30px;">
+    <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
+    <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">Great news! Your application for the position of <strong style="color: #1f2937;">${jobTitle}</strong> at <strong style="color: #1f2937;">${companyName}</strong> is now being reviewed by our hiring team.</p>
+    <div style="background: #f3f4f6; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
+      <p style="color: #6b7280; font-size: 14px; margin: 0;">We will keep you updated on any further progress.</p>
+    </div>
+    <p style="color: #9ca3af; font-size: 13px; margin: 30px 0 0;">Best regards,<br/><strong style="color: #1f2937;">The ${companyName} Hiring Team</strong></p>
+  </div>
+  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+    <p style="color: #9ca3af; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+  </div>
+</div>
               `;
               break;
             case 'approved':
               emailSubject = `Congratulations! Your Application for ${jobTitle} Has Been Approved!`;
               emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-                    <h2 style="color: white; margin: 0;">Congratulations!</h2>
-                  </div>
-                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-                    <p style="color: #333;">Dear ${applicantName},</p>
-                    <p style="color: #333;">We are thrilled to inform you that your application for the position of <strong>${jobTitle}</strong> at <strong>${companyName}</strong> has been <strong style="color: #10B981;">APPROVED</strong>!</p>
-                    <p style="color: #666;">The company will reach out to you shortly with next steps.</p>
-                    <p style="color: #666;">Best of luck!</p>
-                    <p style="color: #666;">Best regards,<br/>The ${companyName} Team</p>
-                  </div>
-                </div>
+<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+  <div style="background: linear-gradient(135deg, #10b981 0%, #059670 100%); padding: 40px 30px; text-align: center;">
+    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
+    <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+    <h2 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Congratulations!</h2>
+  </div>
+  <div style="padding: 40px 30px;">
+    <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
+    <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">We are thrilled to inform you that your application for the position of <strong style="color: #1f2937;">${jobTitle}</strong> at <strong style="color: #1f2937;">${companyName}</strong> has been <span style="color: #10b981; font-weight: bold;">APPROVED</span>!</p>
+    <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #10b981; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
+      <p style="color: #065f46; font-size: 14px; font-weight: 600; margin: 0;">The company will reach out to you shortly with next steps.</p>
+    </div>
+    <p style="color: #9ca3af; font-size: 13px; margin: 30px 0 0;">Best of luck!<br/><strong style="color: #1f2937;">The ${companyName} Team</strong></p>
+  </div>
+  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+    <p style="color: #9ca3af; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+  </div>
+</div>
               `;
               break;
             case 'rejected':
               emailSubject = `Application Update for ${jobTitle}`;
               emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <div style="background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%); padding: 20px; border-radius: 10px 10px 0 0;">
-                    <h2 style="color: white; margin: 0;">Application Update</h2>
-                  </div>
-                  <div style="padding: 20px; background: #f9f9f9; border-radius: 0 0 10px 10px;">
-                    <p style="color: #333;">Dear ${applicantName},</p>
-                    <p style="color: #333;">Thank you for your interest in the position of <strong>${jobTitle}</strong> at <strong>${companyName}</strong>.</p>
-                    <p style="color: #666;">After careful consideration, we have decided to proceed with other candidates whose qualifications more closely match our current needs.</p>
-                    <p style="color: #666;">We encourage you to apply for future positions that match your skills.</p>
-                    <p style="color: #666;">We wish you the best in your career journey.</p>
-                    <p style="color: #666;">Best regards,<br/>The ${companyName} Team</p>
-                  </div>
-                </div>
+<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+  <div style="background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); padding: 40px 30px; text-align: center;">
+    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
+    <h2 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Application Update</h2>
+  </div>
+  <div style="padding: 40px 30px;">
+    <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
+    <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">Thank you for your interest in the position of <strong style="color: #1f2937;">${jobTitle}</strong> at <strong style="color: #1f2937;">${companyName}</strong>.</p>
+    <div style="background: #f3f4f6; border-radius: 12px; padding: 20px; margin: 25px 0;">
+      <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px;">After careful consideration, we have decided to proceed with other candidates whose qualifications more closely match our current needs.</p>
+      <p style="color: #6b7280; font-size: 14px; margin: 0;">We encourage you to apply for future positions that match your skills.</p>
+    </div>
+    <p style="color: #9ca3af; font-size: 13px; margin: 30px 0 0;">We wish you the best in your career journey!<br/><strong style="color: #1f2937;">The ${companyName} Team</strong></p>
+  </div>
+  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+    <p style="color: #9ca3af; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+  </div>
+</div>
               `;
               break;
           }
@@ -474,7 +607,7 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
       }
     }
     
-    if (shouldSendEmail && sendEmail !== false) {
+    if (shouldSendEmail && shouldSendEmail !== false) {
       if (result.emailSent) {
         notifications.push('email');
       } else if (result.emailError) {
@@ -501,19 +634,21 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
       notificationResult: result
     });
 
-  } catch (error) {
-    console.error('❌ Update application status error:', error);
-    res.status(500).json({ 
+} catch (error) {
+    console.error('Error updating application status:', error);
+    return res.status(500).json({ 
       success: false, 
-      message: 'Server error: ' + error.message,
-      error: error.message
+      message: 'Failed to update application status: ' + error.message
     });
   }
 });
 
-// Update application
+// Update application (generic)
 router.put('/:id', protect, async (req, res) => {
   try {
+    console.log('\n=== PUT /api/applications/:id (generic) ===');
+    console.log('ID:', req.params.id);
+    
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ success: false, message: 'Invalid application ID' });
     }
@@ -534,7 +669,7 @@ router.put('/:id', protect, async (req, res) => {
     res.json({ success: true, data: application });
   } catch (error) {
     console.error('Update application error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 });
 
@@ -551,7 +686,7 @@ router.delete('/:id', protect, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Application not found' });
     }
 
-    if (application.userId.toString() !== req.user.id && req.user.userType !== 'company') {
+    if (application.userId.toString() !== req.user._id.toString() && req.user.userType !== 'company') {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 

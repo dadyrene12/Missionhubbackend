@@ -2,29 +2,23 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 
-// Import models
 const User = require('../models/User');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
-
-// Import middleware
 const { protect } = require('../middleware/auth');
 
-// Get all users (for messaging - limited info)
 router.get('/', protect, async (req, res) => {
   try {
     const { role, search } = req.query;
     
     let query = {};
     
-    // Filter by user type
     if (role === 'jobSeeker') {
       query.userType = 'jobSeeker';
     } else if (role === 'company') {
       query.userType = 'company';
     }
     
-    // Search by name or email
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -52,7 +46,6 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-// Get current user profile
 router.get('/me', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -64,7 +57,7 @@ router.get('/me', protect, async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId).select('-password');
+    const user = await User.findById(userId);
     
     if (!user) {
       return res.status(404).json({
@@ -73,26 +66,7 @@ router.get('/me', protect, async (req, res) => {
       });
     }
 
-    // Merge profile data to ensure all fields are available at top level for convenience
-    const userData = user.toObject();
-    
-    // Also set top-level fields from profile for convenience
-    if (userData.profile) {
-      userData.phone = userData.profile.phone;
-      userData.location = userData.profile.location;
-      userData.title = userData.profile.title;
-      userData.bio = userData.profile.bio;
-      userData.skills = userData.profile.skills || [];
-      userData.experience = userData.profile.experience;
-      userData.education = userData.profile.education;
-      userData.linkedin = userData.profile.linkedin;
-      userData.github = userData.profile.github;
-      userData.portfolio = userData.profile.portfolio;
-      userData.yearsOfExperience = userData.profile.yearsOfExperience;
-      userData.desiredSalary = userData.profile.desiredSalary;
-      userData.resume = userData.profile.resume;
-      userData.profile = userData.profile; // Keep original profile object
-    }
+    const userData = user.toProfileJSON();
 
     res.json({
       success: true,
@@ -109,7 +83,6 @@ router.get('/me', protect, async (req, res) => {
   }
 });
 
-// Update user profile
 router.put('/me', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -131,22 +104,37 @@ router.put('/me', protect, async (req, res) => {
       experience,
       education,
       preferredJobType,
-      salaryExpectation,
+      desiredSalary,
       linkedin,
       github,
       portfolio,
       title,
       industry,
-      company,
       yearsOfExperience,
       currentSalary,
-      desiredSalary,
       workAuthorization,
       relocation,
-      deleteResume
+      preferredLocation,
+      remoteWork,
+      languages,
+      certifications,
+      coverLetter,
+      availability,
+      expectedSalary,
+      salaryCurrency,
+      nationality,
+      dateOfBirth,
+      gender,
+      experienceDetails,
+      educationDetails,
+      deleteResume,
+      deleteCV,
+      resume,
+      cv,
+      documents,
+      profilePhoto
     } = req.body;
 
-    // Validate email if provided
     if (email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email.trim())) {
@@ -156,7 +144,6 @@ router.put('/me', protect, async (req, res) => {
         });
       }
 
-      // Check if email is already taken by another user
       const existingUser = await User.findOne({ 
         email: email.toLowerCase().trim(), 
         _id: { $ne: userId } 
@@ -170,76 +157,116 @@ router.put('/me', protect, async (req, res) => {
       }
     }
 
-    // Handle delete resume request
-    if (deleteResume) {
-      await User.findByIdAndUpdate(userId, { $unset: { 'profile.resume': 1 } });
-      const user = await User.findById(userId).select('-password');
-      return res.json({
-        success: true,
-        message: 'Resume deleted successfully',
-        data: user
-      });
+    const updateFields = {};
+    
+    if (name !== undefined) updateFields.name = name;
+    if (email !== undefined) updateFields.email = email.toLowerCase().trim();
+
+    const profileUpdates = {};
+    
+    if (phone !== undefined) profileUpdates['profile.phone'] = phone;
+    if (location !== undefined) profileUpdates['profile.location'] = location;
+    if (bio !== undefined) profileUpdates['profile.bio'] = bio;
+    if (title !== undefined) profileUpdates['profile.title'] = title;
+    if (industry !== undefined) profileUpdates['profile.industry'] = industry;
+    
+    if (skills !== undefined) {
+      profileUpdates['profile.skills'] = Array.isArray(skills) 
+        ? skills.filter(s => s && s.trim()) 
+        : (typeof skills === 'string' ? skills.split(',').map(s => s.trim()).filter(Boolean) : []);
+    }
+    
+    if (experience !== undefined) profileUpdates['profile.experience'] = experience;
+    if (education !== undefined) profileUpdates['profile.education'] = education;
+    if (preferredJobType !== undefined) profileUpdates['profile.preferredJobType'] = preferredJobType;
+    if (desiredSalary !== undefined) profileUpdates['profile.desiredSalary'] = desiredSalary;
+    if (currentSalary !== undefined) profileUpdates['profile.currentSalary'] = currentSalary;
+    if (expectedSalary !== undefined) profileUpdates['profile.expectedSalary'] = expectedSalary;
+    if (salaryCurrency !== undefined) profileUpdates['profile.salaryCurrency'] = salaryCurrency;
+    
+    if (linkedin !== undefined) profileUpdates['profile.linkedin'] = linkedin;
+    if (github !== undefined) profileUpdates['profile.github'] = github;
+    if (portfolio !== undefined) profileUpdates['profile.portfolio'] = portfolio;
+    if (linkedin !== undefined) profileUpdates['profile.linkedinUrl'] = linkedin;
+    if (github !== undefined) profileUpdates['profile.githubUrl'] = github;
+    if (portfolio !== undefined) profileUpdates['profile.websiteUrl'] = portfolio;
+    
+    if (yearsOfExperience !== undefined) profileUpdates['profile.yearsOfExperience'] = yearsOfExperience;
+    if (workAuthorization !== undefined) profileUpdates['profile.workAuthorization'] = workAuthorization;
+    if (relocation !== undefined) profileUpdates['profile.relocation'] = relocation;
+    if (availability !== undefined) profileUpdates['profile.availability'] = availability;
+    if (preferredLocation !== undefined) profileUpdates['profile.preferredLocation'] = preferredLocation;
+    if (remoteWork !== undefined) profileUpdates['profile.remoteWork'] = remoteWork;
+    
+    if (languages !== undefined) profileUpdates['profile.languages'] = Array.isArray(languages) ? languages : [];
+    if (certifications !== undefined) profileUpdates['profile.certifications'] = Array.isArray(certifications) ? certifications : [];
+    if (coverLetter !== undefined) profileUpdates['profile.coverLetter'] = coverLetter;
+    
+    if (nationality !== undefined) profileUpdates['profile.nationality'] = nationality;
+    if (dateOfBirth !== undefined) profileUpdates['profile.dateOfBirth'] = dateOfBirth ? new Date(dateOfBirth) : null;
+    if (gender !== undefined) profileUpdates['profile.gender'] = gender;
+    
+    if (experienceDetails !== undefined && Array.isArray(experienceDetails)) {
+      profileUpdates['profile.experienceDetails'] = experienceDetails.map(exp => ({
+        company: exp.company || '',
+        title: exp.title || '',
+        location: exp.location || '',
+        startDate: exp.startDate ? new Date(exp.startDate) : null,
+        endDate: exp.endDate ? new Date(exp.endDate) : null,
+        current: exp.current || false,
+        description: exp.description || ''
+      }));
+    }
+    
+    if (educationDetails !== undefined && Array.isArray(educationDetails)) {
+      profileUpdates['profile.educationDetails'] = educationDetails.map(edu => ({
+        institution: edu.institution || '',
+        degree: edu.degree || '',
+        field: edu.field || '',
+        startDate: edu.startDate ? new Date(edu.startDate) : null,
+        endDate: edu.endDate ? new Date(edu.endDate) : null
+      }));
     }
 
-    // Build update data - store ALL profile fields in the profile object
-    const updateData = {
-      name,
-      email: email ? email.toLowerCase().trim() : undefined,
-    };
+    if (resume !== undefined) profileUpdates['profile.resume'] = resume;
+    if (cv !== undefined) profileUpdates['profile.cv'] = cv;
+    if (documents !== undefined) profileUpdates['profile.documents'] = documents;
+    if (profilePhoto !== undefined) profileUpdates['profile.profilePhoto'] = profilePhoto;
 
-    // Build profile object with all fields - ALWAYS include fields (even if empty)
-    const profileData = {};
+    if (Object.keys(profileUpdates).length > 0) {
+      profileUpdates['profile.lastProfileUpdate'] = new Date();
+    }
+
+    const allUpdates = { ...updateFields, ...profileUpdates };
+
+    if (deleteResume) {
+      allUpdates['profile.resume'] = { name: '', url: '', uploadDate: null, size: '', type: '' };
+    }
     
-    // Store all fields directly
-    profileData.phone = phone || '';
-    profileData.location = location || '';
-    profileData.bio = bio || '';
-    profileData.skills = Array.isArray(skills) ? skills : (typeof skills === 'string' ? skills.split(',').map(s => s.trim()).filter(Boolean) : []);
-    profileData.experience = experience || '';
-    profileData.education = education || '';
-    profileData.preferredJobType = preferredJobType || '';
-    profileData.salaryExpectation = salaryExpectation || '';
-    profileData.linkedin = linkedin || '';
-    profileData.github = github || '';
-    profileData.portfolio = portfolio || '';
-    profileData.title = title || '';
-    profileData.industry = industry || '';
-    profileData.company = company || '';
-    profileData.yearsOfExperience = yearsOfExperience || '';
-    profileData.currentSalary = currentSalary || '';
-    profileData.desiredSalary = desiredSalary || '';
-    profileData.workAuthorization = workAuthorization || '';
-    profileData.relocation = relocation;
-
-    console.log('Updating profile with data:', JSON.stringify({ name, email, profileData }, null, 2));
-
-    // Always add profile object
-    updateData.profile = profileData;
-
-    // Remove undefined values from top level
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] === undefined) delete updateData[key];
-    });
-
-    console.log('Final updateData:', JSON.stringify(updateData, null, 2));
+    if (deleteCV) {
+      allUpdates['profile.cv'] = { name: '', url: '', uploadDate: null, size: '', type: '' };
+    }
 
     const user = await User.findByIdAndUpdate(
       userId,
-      updateData,
+      { $set: allUpdates },
       { new: true, runValidators: true }
-    ).select('-password');
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const userData = user.toProfileJSON();
 
     res.json({
       success: true,
       message: 'Profile updated successfully',
-      data: user
+      data: userData
     });
-    
-    console.log('Profile updated successfully. Saved data:', JSON.stringify({
-      name: user.name,
-      email: user.email,
-      profile: user.profile
-    }, null, 2));
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({
@@ -250,7 +277,53 @@ router.put('/me', protect, async (req, res) => {
   }
 });
 
-// Upload profile photo
+router.put('/me/batch', protect, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const { updates } = req.body;
+    
+    if (!updates || !Array.isArray(updates)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid updates array'
+      });
+    }
+
+    const bulkOps = updates.map(update => ({
+      updateOne: {
+        filter: { _id: userId },
+        update: { $set: update }
+      }
+    }));
+
+    await User.collection.bulkWrite(bulkOps);
+
+    const user = await User.findById(userId);
+    const userData = user.toProfileJSON();
+
+    res.json({
+      success: true,
+      message: 'Profile batch update successful',
+      data: userData
+    });
+  } catch (error) {
+    console.error('Batch update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile',
+      error: error.message
+    });
+  }
+});
+
 router.post('/profile/photo', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -262,18 +335,24 @@ router.post('/profile/photo', protect, async (req, res) => {
       });
     }
 
-    // This would handle file upload - for now, return mock response
-    const photoUrl = `/uploads/profiles/${userId}-${Date.now()}.jpg`;
+    const { photoUrl } = req.body;
+    
+    if (!photoUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Photo URL is required'
+      });
+    }
 
     const user = await User.findByIdAndUpdate(
       userId,
-      { 'profile.profilePhoto': photoUrl },
+      { $set: { 'profile.profilePhoto': photoUrl } },
       { new: true }
     ).select('-password');
 
     res.json({
       success: true,
-      message: 'Profile photo uploaded successfully',
+      message: 'Profile photo updated successfully',
       data: {
         photoUrl,
         user
@@ -289,7 +368,6 @@ router.post('/profile/photo', protect, async (req, res) => {
   }
 });
 
-// Upload resume
 router.post('/profile/resume', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -304,31 +382,24 @@ router.post('/profile/resume', protect, async (req, res) => {
     const { name, url, size, type } = req.body;
 
     const resumeData = {
-      name,
-      url,
+      name: name || '',
+      url: url || '',
       uploadDate: new Date(),
-      size,
-      type
+      size: size || '',
+      type: type || ''
     };
 
-    // Use raw MongoDB update to bypass mongoose schema validation
-    const mongoose = require('mongoose');
-    const db = mongoose.connection.db;
-    if (!db) {
-      return res.status(500).json({ success: false, message: 'Database not connected' });
-    }
-    await db.collection('users').updateOne(
-      { _id: new mongoose.Types.ObjectId(userId) },
-      { $set: { 'profile.resume': resumeData } }
-    );
-
-    const user = await User.findById(userId).select('-password');
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { 'profile.resume': resumeData } },
+      { new: true }
+    ).select('-password');
 
     res.json({
       success: true,
-      message: 'Resume uploaded successfully',
+      message: 'Resume updated successfully',
       data: {
-        resume: resumeData,
+        resume: user.profile.resume,
         user
       }
     });
@@ -336,13 +407,234 @@ router.post('/profile/resume', protect, async (req, res) => {
     console.error('Upload resume error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to upload resume',
+      message: 'Failed to update resume',
       error: error.message
     });
   }
 });
 
-// Change password
+router.post('/profile/cv', protect, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const { name, url, size, type } = req.body;
+
+    const cvData = {
+      name: name || '',
+      url: url || '',
+      uploadDate: new Date(),
+      size: size || '',
+      type: type || ''
+    };
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { 'profile.cv': cvData } },
+      { new: true }
+    ).select('-password');
+
+    res.json({
+      success: true,
+      message: 'CV updated successfully',
+      data: {
+        cv: user.profile.cv,
+        user
+      }
+    });
+  } catch (error) {
+    console.error('Upload CV error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update CV',
+      error: error.message
+    });
+  }
+});
+
+router.post('/profile/document', protect, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const { name, url, size, type, category } = req.body;
+
+    const mongoose = require('mongoose');
+    const documentData = {
+      _id: new mongoose.Types.ObjectId(),
+      name: name || '',
+      url: url || '',
+      uploadDate: new Date(),
+      size: size || '',
+      type: type || '',
+      category: category || 'general'
+    };
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $push: { 'profile.documents': documentData } },
+      { new: true }
+    ).select('-password');
+
+    res.json({
+      success: true,
+      message: 'Document added successfully',
+      data: {
+        document: documentData,
+        user
+      }
+    });
+  } catch (error) {
+    console.error('Add document error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add document',
+      error: error.message
+    });
+  }
+});
+
+router.delete('/profile/document/:documentId', protect, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { documentId } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const mongoose = require('mongoose');
+    
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $pull: { 'profile.documents': { _id: new mongoose.Types.ObjectId(documentId) } } },
+      { new: true }
+    ).select('-password');
+
+    res.json({
+      success: true,
+      message: 'Document deleted successfully',
+      data: user
+    });
+  } catch (error) {
+    console.error('Delete document error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete document',
+      error: error.message
+    });
+  }
+});
+
+router.put('/profile/experience', protect, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { experienceDetails } = req.body;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const formattedExperience = (experienceDetails || []).map(exp => ({
+      company: exp.company || '',
+      title: exp.title || '',
+      location: exp.location || '',
+      startDate: exp.startDate ? new Date(exp.startDate) : null,
+      endDate: exp.endDate ? new Date(exp.endDate) : null,
+      current: exp.current || false,
+      description: exp.description || ''
+    }));
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { 
+        $set: { 
+          'profile.experienceDetails': formattedExperience,
+          'profile.lastProfileUpdate': new Date()
+        }
+      },
+      { new: true }
+    ).select('-password');
+
+    res.json({
+      success: true,
+      message: 'Experience updated successfully',
+      data: user.profile.experienceDetails
+    });
+  } catch (error) {
+    console.error('Update experience error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update experience',
+      error: error.message
+    });
+  }
+});
+
+router.put('/profile/education', protect, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { educationDetails } = req.body;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const formattedEducation = (educationDetails || []).map(edu => ({
+      institution: edu.institution || '',
+      degree: edu.degree || '',
+      field: edu.field || '',
+      startDate: edu.startDate ? new Date(edu.startDate) : null,
+      endDate: edu.endDate ? new Date(edu.endDate) : null
+    }));
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { 
+        $set: { 
+          'profile.educationDetails': formattedEducation,
+          'profile.lastProfileUpdate': new Date()
+        }
+      },
+      { new: true }
+    ).select('-password');
+
+    res.json({
+      success: true,
+      message: 'Education updated successfully',
+      data: user.profile.educationDetails
+    });
+  } catch (error) {
+    console.error('Update education error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update education',
+      error: error.message
+    });
+  }
+});
+
 router.put('/password', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -370,7 +662,6 @@ router.put('/password', protect, async (req, res) => {
       });
     }
 
-    // Get user with password
     const user = await User.findById(userId).select('+password');
     
     if (!user) {
@@ -380,7 +671,6 @@ router.put('/password', protect, async (req, res) => {
       });
     }
 
-    // Check current password
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     
     if (!isMatch) {
@@ -390,7 +680,6 @@ router.put('/password', protect, async (req, res) => {
       });
     }
 
-    // Update password
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPassword, salt);
     await user.save();
@@ -409,7 +698,6 @@ router.put('/password', protect, async (req, res) => {
   }
 });
 
-// Get user's applications
 router.get('/applications', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -440,7 +728,6 @@ router.get('/applications', protect, async (req, res) => {
   }
 });
 
-// Get user's saved jobs
 router.get('/saved-jobs', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -452,7 +739,6 @@ router.get('/saved-jobs', protect, async (req, res) => {
       });
     }
 
-    // For now, return empty array - would implement saved jobs functionality
     res.json({
       success: true,
       message: 'Saved jobs retrieved successfully',
@@ -468,7 +754,6 @@ router.get('/saved-jobs', protect, async (req, res) => {
   }
 });
 
-// Save/unsave job
 router.post('/saved-jobs/:jobId', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -481,7 +766,6 @@ router.post('/saved-jobs/:jobId', protect, async (req, res) => {
       });
     }
 
-    // Check if job exists
     const job = await Job.findById(jobId);
     if (!job) {
       return res.status(404).json({
@@ -490,7 +774,6 @@ router.post('/saved-jobs/:jobId', protect, async (req, res) => {
       });
     }
 
-    // For now, just return success - would implement saved jobs functionality
     res.json({
       success: true,
       message: 'Job saved successfully'
@@ -505,7 +788,6 @@ router.post('/saved-jobs/:jobId', protect, async (req, res) => {
   }
 });
 
-// Delete user account
 router.delete('/account', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -517,11 +799,9 @@ router.delete('/account', protect, async (req, res) => {
       });
     }
 
-    // Delete user and related data
     await Promise.all([
       User.findByIdAndDelete(userId),
-      Application.deleteMany({ userId }),
-      // Would also delete messages, notifications, etc.
+      Application.deleteMany({ userId })
     ]);
 
     res.json({
@@ -538,7 +818,6 @@ router.delete('/account', protect, async (req, res) => {
   }
 });
 
-// Get user statistics
 router.get('/stats', protect, async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -562,13 +841,17 @@ router.get('/stats', protect, async (req, res) => {
       Application.countDocuments({ userId, status: 'rejected' })
     ]);
 
+    const user = await User.findById(userId);
+
     const stats = {
       totalApplications,
       pendingApplications,
       approvedApplications,
       rejectedApplications,
       successRate: totalApplications > 0 ? 
-        ((approvedApplications / totalApplications) * 100).toFixed(1) : 0
+        ((approvedApplications / totalApplications) * 100).toFixed(1) : 0,
+      profileCompletion: user?.calculateProfileCompletion() || 0,
+      isProfileComplete: user?.isProfileComplete || false
     };
 
     res.json({

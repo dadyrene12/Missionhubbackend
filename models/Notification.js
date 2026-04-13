@@ -29,7 +29,9 @@ const notificationSchema = new mongoose.Schema({
       'job_application',   // Job application received
       'verified',          // Account verification status
       'user',              // User related notifications
-      'company'            // Company related notifications
+      'company',            // Company related notifications
+      'ai_job_match',      // AI found a matching job for user
+      'ai_candidate_match'  // AI found a matching candidate for company
     ]
   },
   title: {
