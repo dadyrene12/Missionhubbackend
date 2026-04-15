@@ -28,11 +28,7 @@ const app = express();
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(
-      process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/mission_hub', 
-      {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      }
+      process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/mission_hub'
     );
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);

@@ -265,7 +265,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-userSchema.index({ email: 1 });
+
 userSchema.index({ userType: 1 });
 userSchema.index({ isVerified: 1 });
 userSchema.index({ createdAt: -1 });

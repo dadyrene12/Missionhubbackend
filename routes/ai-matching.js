@@ -4,6 +4,9 @@ const User = require('../models/User');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const aiMatchingService = require('../services/aiMatchingService');
+const aiScreeningService = require('../services/aiScreeningService');
+const Notification = require('../models/Notification');
+const jwt = require('jsonwebtoken');
 
 // Middleware to protect routes
 const protect = async (req, res, next) => {
@@ -385,5 +388,411 @@ function generateImprovementPlan(gaps) {
 
   return plan;
 }
+
+// AI Screening Routes
+router.post('/screening/screen-candidate', protect, async (req, res) => {
+  try {
+    const { applicationId } = req.body;
+    
+    console.log('[AI Screening] Screen request for:', applicationId);
+    
+    if (!applicationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Application ID is required'
+      });
+    }
+
+    const application = await Application.findById(applicationId)
+      .populate('userId', 'name email profile profilePhoto');
+    
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      });
+    }
+
+    let job;
+    if (application.jobId) {
+      job = await Job.findById(application.jobId);
+    }
+    
+    if (!job) {
+      // If no job found, create a minimal job object for screening
+      job = {
+        title: 'Position',
+        description: '',
+        requirements: '',
+        responsibilities: '',
+        skills: [],
+        experience: '',
+        education: '',
+        salaryMin: 0,
+        salaryMax: 0,
+        location: '',
+        type: 'Full-time',
+        benefits: ''
+      };
+    }
+
+    console.log('[AI Screening] Screening candidate for job:', job.title);
+
+    const screeningResult = await aiScreeningService.screenCandidate(application, job);
+
+    await Application.findByIdAndUpdate(applicationId, {
+      aiScreening: screeningResult,
+      screenedAt: new Date()
+    });
+
+    res.json({
+      success: true,
+      screening: screeningResult
+    });
+
+  } catch (error) {
+    console.error('[AI Screening] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error screening candidate: ' + error.message
+    });
+  }
+});
+
+router.post('/screening/screen-job-candidates', protect, async (req, res) => {
+  try {
+    const { jobId } = req.body;
+    
+    if (!jobId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Job ID is required'
+      });
+    }
+
+    const job = await Job.findOne({ _id: jobId, postedBy: req.user._id });
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found or access denied'
+      });
+    }
+
+    const applications = await Application.find({ jobId })
+      .populate('userId', 'name email profile profilePhoto');
+
+    if (applications.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No applicants found for this job',
+        results: []
+      });
+    }
+
+    const results = await aiScreeningService.batchScreenCandidates(applications, job);
+
+    for (const result of results) {
+      const app = applications.find(a => 
+        a._id.toString() === result.candidateId || 
+        a.userId?._id?.toString() === result.candidateId
+      );
+      if (app) {
+        await Application.findByIdAndUpdate(app._id, {
+          aiScreening: result,
+          screenedAt: new Date()
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      jobId: job._id,
+      jobTitle: job.title,
+      totalApplicants: applications.length,
+      results: results
+    });
+
+  } catch (error) {
+    console.error('Batch screening error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error batch screening candidates: ' + error.message
+    });
+  }
+});
+
+router.post('/screening/analyze-resume', protect, async (req, res) => {
+  try {
+    const { applicationId, jobId } = req.body;
+    
+    let resumeText = '';
+    let jobSkills = [];
+    
+    if (applicationId) {
+      const application = await Application.findById(applicationId);
+      if (application) {
+        resumeText = application.resume || application.coverLetter || '';
+      }
+    }
+    
+    if (jobId) {
+      const job = await Job.findById(jobId);
+      if (job) {
+        jobSkills = job.skills || [];
+      }
+    }
+
+    const analysis = await aiScreeningService.analyzeResumeQuality(resumeText, jobSkills);
+
+    res.json({
+      success: true,
+      analysis
+    });
+
+  } catch (error) {
+    console.error('Resume analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error analyzing resume: ' + error.message
+    });
+  }
+});
+
+router.post('/screening/generate-job-description', protect, async (req, res) => {
+  try {
+    const { companyInfo, requirements } = req.body;
+    
+    if (!requirements) {
+      return res.status(400).json({
+        success: false,
+        message: 'Job requirements are required'
+      });
+    }
+
+    const company = companyInfo || {
+      name: req.user.name,
+      description: '',
+      industry: 'Technology',
+      companySize: '11-50'
+    };
+
+    const generated = await aiScreeningService.generateJobDescription(company, requirements);
+
+    res.json({
+      success: true,
+      generated
+    });
+
+  } catch (error) {
+    console.error('Generate job description error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error generating job description: ' + error.message
+    });
+  }
+});
+
+router.get('/screening/stats', protect, async (req, res) => {
+  try {
+    const { jobId } = req.query;
+    
+    let filter = {};
+    
+    if (jobId && jobId !== 'all') {
+      try {
+        filter.jobId = jobId;
+      } catch (e) {
+        // Invalid jobId, return empty stats
+      }
+    }
+    
+    const screenedApplications = await Application.find({
+      ...filter,
+      aiScreening: { $exists: true }
+    })
+    .populate('userId', 'name');
+    
+    const stats = {
+      totalScreened: screenedApplications.length,
+      averageScore: 0,
+      scoreDistribution: {
+        excellent: 0,
+        good: 0,
+        fair: 0,
+        poor: 0
+      },
+      topCandidates: []
+    };
+
+    if (screenedApplications.length > 0) {
+      const scores = screenedApplications
+        .map(app => app.aiScreening?.overallScore || 0)
+        .filter(score => score > 0);
+      
+      if (scores.length > 0) {
+        stats.averageScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        
+        stats.scoreDistribution.excellent = scores.filter(s => s >= 85).length;
+        stats.scoreDistribution.good = scores.filter(s => s >= 70 && s < 85).length;
+        stats.scoreDistribution.fair = scores.filter(s => s >= 50 && s < 70).length;
+        stats.scoreDistribution.poor = scores.filter(s => s < 50).length;
+      }
+
+      stats.topCandidates = screenedApplications
+        .filter(app => app.aiScreening?.overallScore >= 70)
+        .sort((a, b) => (b.aiScreening?.overallScore || 0) - (a.aiScreening?.overallScore || 0))
+        .slice(0, 5)
+        .map(app => ({
+          applicationId: app._id,
+          candidateName: app.userId?.name || 'Unknown',
+          score: app.aiScreening?.overallScore || 0,
+          strengths: (app.aiScreening?.strengths || []).slice(0, 2),
+          screenedAt: app.aiScreening?.screenedAt
+        }));
+    }
+
+    res.json({
+      success: true,
+      stats
+    });
+
+  } catch (error) {
+    console.error('Screening stats error:', error);
+    res.json({
+      success: true,
+      stats: {
+        totalScreened: 0,
+        averageScore: 0,
+        scoreDistribution: { excellent: 0, good: 0, fair: 0, poor: 0 },
+        topCandidates: []
+      }
+    });
+  }
+});
+
+router.get('/screening/candidate/:applicationId', protect, async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    
+    const application = await Application.findById(applicationId)
+      .populate('userId', 'name email profile profilePhoto')
+      .populate('jobId', 'title');
+    
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      });
+    }
+
+    const screening = application.aiScreening || null;
+
+    res.json({
+      success: true,
+      application,
+      screening
+    });
+
+  } catch (error) {
+    console.error('Get screening error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching screening: ' + error.message
+    });
+  }
+});
+
+router.post('/analyze-jobs', protect, async (req, res) => {
+  try {
+    const adminUser = req.user;
+    
+    if (adminUser.userType !== 'super_admin' && adminUser.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+
+    const { minMatchScore = 50, limit = 50 } = req.body;
+
+    const users = await User.find({ userType: 'jobSeeker', isActive: true })
+      .select('name email profile aiNotifications')
+      .limit(100);
+
+    const jobs = await Job.find({ status: 'active' })
+      .populate('postedBy', 'name companyName')
+      .limit(limit);
+
+    let totalNotifications = 0;
+    let totalMatches = 0;
+
+    for (const user of users) {
+      const userSkills = user.profile?.skills || [];
+      const userExperience = user.profile?.experience || '';
+      const userTitle = user.profile?.title || '';
+
+      if (userSkills.length === 0 && !userExperience) continue;
+
+      const userApplications = await Application.find({ userId: user._id });
+      const appliedJobIds = userApplications.map(app => app.jobId.toString());
+      const availableJobs = jobs.filter(job => !appliedJobIds.includes(job._id.toString()));
+
+      if (availableJobs.length === 0) continue;
+
+      for (const job of availableJobs.slice(0, 10)) {
+        const jobSkills = job.skills || [];
+        const jobExperience = job.experience || '';
+        const jobTitle = job.title || '';
+
+        const userSkillsLower = userSkills.map(s => s.toLowerCase());
+        const jobSkillsLower = jobSkills.map(s => s.toLowerCase());
+        
+        const skillsMatch = userSkillsLower.some(skill => jobSkillsLower.includes(skill));
+        const experienceMatch = userExperience && jobExperience && 
+          (userExperience.toLowerCase().includes(jobExperience.toLowerCase()) ||
+           jobExperience.toLowerCase().includes(userExperience.toLowerCase()));
+
+        if (skillsMatch || experienceMatch) {
+          totalMatches++;
+          
+          const matchType = skillsMatch && experienceMatch ? 'both' : skillsMatch ? 'skills' : 'experience';
+          const matchScore = skillsMatch && experienceMatch ? 90 : 70;
+
+          await Notification.create({
+            userId: user._id,
+            type: 'ai_job_match',
+            title: 'Job Match Found!',
+            message: `We found a job that matches your profile: ${job.title} at ${job.postedBy?.companyName || 'a company'}. Your ${matchType} match this job requirements.`,
+            priority: 'normal',
+            senderId: adminUser._id,
+            senderType: 'system',
+            jobDetails: {
+              title: job.title,
+              jobId: job._id,
+              company: job.postedBy?.companyName || '',
+              status: 'active',
+              salary: job.salaryMax ? `${job.salaryMin}-${job.salaryMax}` : '',
+              location: job.location || ''
+            }
+          });
+
+          totalNotifications++;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Analyzed ${users.length} users against ${jobs.length} jobs`,
+      results: {
+        totalUsers: users.length,
+        totalJobs: jobs.length,
+        totalMatches,
+        notificationsSent: totalNotifications
+      }
+    });
+
+  } catch (error) {
+    console.error('Analyze all jobs error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 module.exports = router;
