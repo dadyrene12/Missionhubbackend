@@ -106,22 +106,38 @@ router.get('/company', protect, companyOnly, async (req, res) => {
 // Get applications for user's jobs
 router.get('/for-my-jobs', protect, companyOnly, async (req, res) => {
   try {
-    const jobs = await Job.find({ postedBy: req.user._id }).select('_id').lean();
-    const jobIds = jobs.map(job => job._id);
+    const applications = await Application.aggregate([
+      {
+        $lookup: {
+          from: 'jobs',
+          localField: 'jobId',
+          foreignField: '_id',
+          as: 'jobId'
+        }
+      },
+      { $unwind: '$jobId' },
+      { $match: { 'jobId.postedBy': req.user._id } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'userId'
+        }
+      },
+      { $unwind: { path: '$userId', preserveNullAndEmptyArrays: true } },
+      { $sort: { createdAt: -1 } },
+      {
+        $project: {
+          _id: 1, status: 1, coverLetter: 1, createdAt: 1, updatedAt: 1,
+          jobId: { _id: '$jobId._id', title: '$jobId.title' },
+          userId: { _id: '$userId._id', name: '$userId.name', email: '$userId.email', profile: '$userId.profile' },
+          aiScreening: 1, resume: 1, skills: 1
+        }
+      }
+    ]);
 
-    const applications = await Application.find({ jobId: { $in: jobIds } })
-      .populate('jobId', 'title company')
-      .populate('userId', 'name email profile')
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const transformedApps = applications.map(app => ({
-      ...app,
-      resume: app.resume || app.userId?.profile?.resume || null,
-      skills: app.skills || app.userId?.profile?.skills || [],
-    }));
-
-    res.json({ success: true, data: transformedApps });
+    res.json({ success: true, data: applications });
   } catch (error) {
     console.error('Get applications error:', error);
     res.status(500).json({ success: false, message: 'Server error' });

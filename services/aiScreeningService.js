@@ -2,17 +2,26 @@ const axios = require('axios');
 
 class AIScreeningService {
   constructor() {
-    this.apiKey = process.env.ANTHROPIC_API_KEY; // ✅ FIXED (no hardcoded secret)
+    this.apiKey = process.env.ANTHROPIC_API_KEY;
+    this.geminiApiKey = process.env.GEMINI_API_KEY;
     this.baseUrl = 'https://api.anthropic.com/v1';
     this.model = 'claude-3-5-sonnet-20241022';
     this.cache = new Map();
     this.cacheTimeout = 5 * 60 * 1000;
 
-    if (!this.apiKey) {
-      console.warn('[AI Screening] WARNING: ANTHROPIC_API_KEY not set in environment variables');
-    }
+    console.log('[AI Screening] Service initialized');
+  }
 
-    console.log('[AI Screening] Service initialized with Anthropic API');
+  setApiKey(apiKey) {
+    if (apiKey) {
+      this.apiKey = apiKey;
+      console.log('[AI Screening] Custom API key set');
+    }
+  }
+
+  setProvider(provider) {
+    this.provider = provider;
+    console.log('[AI Screening] Provider set to:', provider);
   }
 
   getCacheKey(candidateId, jobId) {
@@ -32,6 +41,10 @@ class AIScreeningService {
   }
 
   async callClaudeAI(messages, temperature = 0.3) {
+    if (!this.apiKey) {
+      console.warn('[AI Screening] No Claude API key available');
+      return null;
+    }
     try {
       console.log('[AI Screening] Calling Claude API...');
 
@@ -59,20 +72,51 @@ class AIScreeningService {
       );
 
       return response.data.content[0].text;
-
     } catch (error) {
       console.error('[AI Screening] Claude API Error:', error.message);
-      return null; // fallback trigger
+      return null;
     }
   }
 
-  // ✅ FIXED missing function (was breaking your code)
-  async callMistralAI(messages, temperature = 0.3) {
-    console.warn('[AI Screening] Mistral AI not configured - using fallback');
-    return null;
+  async callGeminiAI(prompt, temperature = 0.3) {
+    const apiKey = this.geminiApiKey || this.apiKey;
+    if (!apiKey) {
+      console.warn('[AI Screening] No Gemini API key available');
+      return null;
+    }
+    try {
+      console.log('[AI Screening] Calling Gemini API with key:', apiKey.substring(0, 10) + '...');
+      
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: 2048,
+            topP: 0.95,
+            topK: 40
+          }
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 30000
+        }
+      );
+
+      console.log('[AI Screening] Gemini response received');
+      return response.data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    } catch (error) {
+      console.error('[AI Screening] Gemini API Error:', error.message);
+      if (error.response) {
+        console.error('[AI Screening] Response status:', error.response.status);
+        console.error('[AI Screening] Response data:', error.response.data);
+      }
+      return null;
+    }
   }
 
-  async screenCandidate(candidate, job) {
+  async screenCandidate(candidate, job, provider = 'claude') {
     const cacheKey = this.getCacheKey(
       candidate._id?.toString() || candidate.userId?._id?.toString(),
       job._id?.toString()
@@ -110,26 +154,76 @@ class AIScreeningService {
       benefits: job.benefits || ''
     };
 
-    const prompt = `You are an expert HR recruiter...
+    const prompt = `You are an expert HR recruiter. Analyze the following candidate for the job position and provide a detailed screening result in JSON format.
 
-(CONTENT SAME AS YOUR ORIGINAL — unchanged for brevity)`;
+CANDIDATE:
+- Name: ${candidateInfo.name}
+- Email: ${candidateInfo.email}
+- Skills: ${candidateInfo.skills.join(', ')}
+- Experience: ${candidateInfo.experience}
+- Education: ${candidateInfo.education}
+- Current Title: ${candidateInfo.title}
+- Bio: ${candidateInfo.bio}
+- Resume: ${candidateInfo.resume}
 
-    try {
-      const result = await this.callClaudeAI([
+JOB:
+- Title: ${jobInfo.title}
+- Description: ${jobInfo.description}
+- Requirements: ${jobInfo.requirements}
+- Responsibilities: ${jobInfo.responsibilities}
+- Required Skills: ${jobInfo.skills.join(', ')}
+- Experience Required: ${jobInfo.experience}
+- Education Required: ${jobInfo.education}
+- Location: ${jobInfo.location}
+- Type: ${jobInfo.type}
+- Benefits: ${jobInfo.benefits}
+
+Provide a JSON response with these exact fields:
+{
+  "overallScore": (0-100),
+  "skillsMatch": {
+    "score": (0-100),
+    "matchedSkills": ["list of matched skills"],
+    "missingSkills": ["list of missing skills"]
+  },
+  "experienceMatch": {
+    "score": (0-100),
+    "details": "brief explanation"
+  },
+  "resumeAnalysis": {
+    "score": (0-100),
+    "strengths": ["list of resume strengths"]
+  },
+  "culturalFitScore": (0-100),
+  "strengths": ["list of candidate strengths"],
+  "concerns": ["list of concerns"],
+  "interviewQuestions": ["3-5 recommended interview questions"],
+  "recommendation": "brief recommendation text"
+}`;
+
+    let result = null;
+    
+    if (provider === 'gemini') {
+      result = await this.callGeminiAI(prompt);
+    } else {
+      result = await this.callClaudeAI([
         { role: 'system', content: 'You are a professional HR screening assistant. Always respond with valid JSON.' },
         { role: 'user', content: prompt }
       ]);
+    }
 
-      if (!result) {
-        const fallback = this.generateFallbackAnalysis(candidateInfo, jobInfo);
-        return { ...fallback, isFallback: true };
-      }
+    if (!result) {
+      const fallback = this.generateFallbackAnalysis(candidateInfo, jobInfo);
+      return { ...fallback, isFallback: true };
+    }
 
+    try {
       const jsonMatch = result.match(/\{[\s\S]*\}/);
       const parsedResult = jsonMatch ? JSON.parse(jsonMatch[0]) : this.generateFallbackAnalysis(candidateInfo, jobInfo);
 
       const screeningResult = {
         ...parsedResult,
+        provider: provider,
         candidateId: candidateInfo.name,
         candidateEmail: candidateInfo.email,
         jobId: jobInfo.title,
@@ -138,20 +232,58 @@ class AIScreeningService {
 
       this.setCache(cacheKey, screeningResult);
       return screeningResult;
-
-    } catch (error) {
-      console.error('[AI Screening] Error:', error.message);
-
+    } catch (parseError) {
+      console.error('[AI Screening] JSON parse error:', parseError.message);
       const fallback = this.generateFallbackAnalysis(candidateInfo, jobInfo);
-      return {
-        ...fallback,
-        isFallback: true,
-        screenedAt: new Date().toISOString()
-      };
+      return { ...fallback, isFallback: true, screenedAt: new Date().toISOString() };
     }
   }
 
-  // ⚠️ keep your existing generateFallbackAnalysis (unchanged)
+  generateFallbackAnalysis(candidateInfo, jobInfo) {
+    const candidateSkills = (candidateInfo.skills || []).map(s => s.toLowerCase());
+    const jobSkills = (jobInfo.skills || []).map(s => s.toLowerCase());
+    
+    const matchedSkills = jobSkills.filter(s => candidateSkills.some(cs => cs.includes(s) || s.includes(cs)));
+    const missingSkills = jobSkills.filter(s => !candidateSkills.some(cs => cs.includes(s) || s.includes(cs)));
+    
+    const skillsScore = jobSkills.length > 0 ? Math.round((matchedSkills.length / jobSkills.length) * 100) : 50;
+    
+    let experienceScore = 50;
+    if (candidateInfo.experience && jobInfo.experience) {
+      const expMatch = candidateInfo.experience.toLowerCase().includes(jobInfo.experience.toLowerCase()) ||
+        jobInfo.experience.toLowerCase().includes(candidateInfo.experience.toLowerCase());
+      experienceScore = expMatch ? 80 : 50;
+    }
+    
+    const resumeScore = candidateInfo.resume ? 75 : 50;
+    const overallScore = Math.round((skillsScore * 0.4 + experienceScore * 0.3 + resumeScore * 0.3));
+    
+    return {
+      overallScore,
+      skillsMatch: {
+        score: skillsScore,
+        matchedSkills,
+        missingSkills: missingSkills.slice(0, 3)
+      },
+      experienceMatch: {
+        score: experienceScore,
+        details: 'Based on available information'
+      },
+      resumeAnalysis: {
+        score: resumeScore,
+        strengths: ['Relevant background']
+      },
+      culturalFitScore: Math.round((overallScore + 70) / 2),
+      strengths: matchedSkills.length > 0 ? ['Skills match job requirements'] : ['Eager to learn'],
+      concerns: missingSkills.length > 0 ? ['Missing some key skills'] : [],
+      interviewQuestions: [
+        'Tell me about your experience with ' + (jobSkills[0] || 'the required skills'),
+        'How do you handle ' + (jobInfo.responsibilities?.split(',')[0] || 'challenging situations') + '?',
+        'Why are you interested in this role?'
+      ],
+      recommendation: overallScore >= 70 ? 'Strong candidate - recommend interview' : 'Consider for interview based on availability'
+    };
+  }
 }
 
 module.exports = new AIScreeningService();

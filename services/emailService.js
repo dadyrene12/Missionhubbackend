@@ -35,7 +35,7 @@ const getTransporter = () => {
   return transporter;
 };
 
-const LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://missionhub.example.com/logo.png';
+const LOGO_URL = process.env.EMAIL_LOGO_URL || 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR717wBeDZv4KrAY_jNb5wDOz09P80Waa9Wag&s';
 const PRIMARY_COLOR = '#4F46E5';
 const SECONDARY_COLOR = '#7C3AED';
 const BG_COLOR = '#F9FAFB';
@@ -60,7 +60,7 @@ const emailWrapper = (content, accentColor = PRIMARY_COLOR) => `
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="text-align: center;">
-                    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
+                    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR717wBeDZv4KrAY_jNb5wDOz09P80Waa9Wag&s" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
                   </td>
                 </tr>
               </table>

@@ -392,9 +392,9 @@ function generateImprovementPlan(gaps) {
 // AI Screening Routes
 router.post('/screening/screen-candidate', protect, async (req, res) => {
   try {
-    const { applicationId } = req.body;
+    const { applicationId, apiKey, provider } = req.body;
     
-    console.log('[AI Screening] Screen request for:', applicationId);
+    console.log('[AI Screening] Screen request for:', applicationId, 'provider:', provider);
     
     if (!applicationId) {
       return res.status(400).json({
@@ -438,7 +438,12 @@ router.post('/screening/screen-candidate', protect, async (req, res) => {
 
     console.log('[AI Screening] Screening candidate for job:', job.title);
 
-    const screeningResult = await aiScreeningService.screenCandidate(application, job);
+    // Set custom API key and provider if provided
+    if (apiKey) {
+      aiScreeningService.setApiKey(apiKey);
+    }
+
+    const screeningResult = await aiScreeningService.screenCandidate(application, job, provider || 'gemini');
 
     await Application.findByIdAndUpdate(applicationId, {
       aiScreening: screeningResult,

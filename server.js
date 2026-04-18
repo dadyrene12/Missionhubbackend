@@ -2211,9 +2211,27 @@ app.get('/api/jobs/company', protect, companyOnly, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
     
+    // Get application counts in one query
+    const jobIds = jobs.map(j => j._id);
+    const applications = await Application.aggregate([
+      { $match: { jobId: { $in: jobIds } } },
+      { $group: { _id: '$jobId', count: { $sum: 1 }, screened: { $sum: { $cond: ['$aiScreening', 1, 0] } } } }
+    ]);
+    
+    const appCounts = {};
+    applications.forEach(a => {
+      appCounts[a._id.toString()] = { total: a.count, screened: a.screened };
+    });
+    
+    const jobsWithCounts = jobs.map(job => ({
+      ...job,
+      totalApplicants: appCounts[job._id.toString()]?.total || 0,
+      screenedCount: appCounts[job._id.toString()]?.screened || 0
+    }));
+    
     res.status(200).json({
       success: true,
-      data: jobs
+      data: jobsWithCounts
     });
   } catch (error) {
     console.error('Get company jobs error:', error);
@@ -2232,10 +2250,26 @@ app.get('/api/jobs/my-jobs', protect, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
     
+    const jobIds = jobs.map(j => j._id);
+    const applications = await Application.aggregate([
+      { $match: { jobId: { $in: jobIds } } },
+      { $group: { _id: '$jobId', count: { $sum: 1 } } }
+    ]);
+    
+    const appCounts = {};
+    applications.forEach(a => {
+      appCounts[a._id.toString()] = a.count;
+    });
+    
+    const jobsWithCounts = jobs.map(job => ({
+      ...job,
+      totalApplicants: appCounts[job._id.toString()] || 0
+    }));
+    
     res.status(200).json({
       success: true,
-      count: jobs.length,
-      jobs
+      count: jobsWithCounts.length,
+      jobs: jobsWithCounts
     });
   } catch (error) {
     console.error('Get my jobs error:', error);
