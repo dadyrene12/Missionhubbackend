@@ -164,7 +164,13 @@ class AIScreeningService {
       benefits: job.benefits || ''
     };
 
-    const prompt = `You are an expert HR recruiter. Analyze the following candidate for the job position and provide a detailed screening result in JSON format.
+    const prompt = `You are an expert HR recruitment assistant. Analyze the following candidate for the job position and provide a detailed screening result in JSON format.
+
+SCORING CRITERIA:
+- Skills Match: 40%
+- Experience: 30%
+- Projects/Achievements: 20%
+- Education: 10%
 
 CANDIDATE:
 - Name: ${candidateInfo.name}
@@ -188,27 +194,37 @@ JOB:
 - Type: ${jobInfo.type}
 - Benefits: ${jobInfo.benefits}
 
-Provide a JSON response with these exact fields:
+Provide a JSON response with these exact fields (scores should be weighted: Skills 40%, Experience 30%, Projects 20%, Education 10%):
 {
-  "overallScore": (0-100),
+  "overallScore": (0-100 weighted score),
   "skillsMatch": {
     "score": (0-100),
+    "weightedScore": (score × 0.40),
     "matchedSkills": ["list of matched skills"],
     "missingSkills": ["list of missing skills"]
   },
   "experienceMatch": {
     "score": (0-100),
+    "weightedScore": (score × 0.30),
+    "yearsMatch": "years of experience match",
     "details": "brief explanation"
   },
-  "resumeAnalysis": {
+  "projectsMatch": {
     "score": (0-100),
-    "strengths": ["list of resume strengths"]
+    "weightedScore": (score × 0.20),
+    "relevantProjects": ["list of relevant projects"],
+    "achievements": ["list of achievements"]
   },
-  "culturalFitScore": (0-100),
-  "strengths": ["list of candidate strengths"],
-  "concerns": ["list of concerns"],
+  "educationMatch": {
+    "score": (0-100),
+    "weightedScore": (score × 0.10),
+    "details": "education details"
+  },
+  "strengths": ["list of key candidate strengths (3-5)"],
+  "weaknesses": ["list of weaknesses or gaps (if any)"],
+  "selectionReason": "detailed reason why this candidate should be selected",
   "interviewQuestions": ["3-5 recommended interview questions"],
-  "recommendation": "brief recommendation text"
+  "recommendation": "brief final recommendation"
 }`;
 
     let result = null;
@@ -257,6 +273,7 @@ Provide a JSON response with these exact fields:
     const missingSkills = jobSkills.filter(s => !candidateSkills.some(cs => cs.includes(s) || s.includes(cs)));
     
     const skillsScore = jobSkills.length > 0 ? Math.round((matchedSkills.length / jobSkills.length) * 100) : 50;
+    const skillsWeighted = Math.round(skillsScore * 0.40);
     
     let experienceScore = 50;
     if (candidateInfo.experience && jobInfo.experience) {
@@ -264,32 +281,62 @@ Provide a JSON response with these exact fields:
         jobInfo.experience.toLowerCase().includes(candidateInfo.experience.toLowerCase());
       experienceScore = expMatch ? 80 : 50;
     }
+    const experienceWeighted = Math.round(experienceScore * 0.30);
     
-    const resumeScore = candidateInfo.resume ? 75 : 50;
-    const overallScore = Math.round((skillsScore * 0.4 + experienceScore * 0.3 + resumeScore * 0.3));
+    const projectsScore = candidateInfo.resume ? 75 : 40;
+    const projectsWeighted = Math.round(projectsScore * 0.20);
+    
+    const educationScore = candidateInfo.education ? 75 : 40;
+    const educationWeighted = Math.round(educationScore * 0.10);
+    
+    const overallScore = skillsWeighted + experienceWeighted + projectsWeighted + educationWeighted;
+    
+    const strengths = matchedSkills.length > 0 
+      ? ['Skills match job requirements', 'Relevant experience', 'Strong background']
+      : ['Eager to learn', 'Potential for growth'];
+    
+    const weaknesses = missingSkills.length > 0 
+      ? ['Missing some key skills: ' + missingSkills.slice(0, 3).join(', ')]
+      : [];
+    
+    const selectionReason = overallScore >= 70 
+      ? `This candidate scored ${overallScore}/100 with strong skills match (${skillsScore}%) and relevant experience. Recommended for interview.`
+      : `This candidate scored ${overallScore}/100. Consider for interview based on availability and specific requirements.`;
     
     return {
       overallScore,
       skillsMatch: {
         score: skillsScore,
+        weightedScore: skillsWeighted,
         matchedSkills,
         missingSkills: missingSkills.slice(0, 3)
       },
       experienceMatch: {
         score: experienceScore,
+        weightedScore: experienceWeighted,
+        yearsMatch: candidateInfo.experience || 'Not specified',
         details: 'Based on available information'
       },
-      resumeAnalysis: {
-        score: resumeScore,
-        strengths: ['Relevant background']
+      projectsMatch: {
+        score: projectsScore,
+        weightedScore: projectsWeighted,
+        relevantProjects: [],
+        achievements: candidateInfo.resume ? ['Resume provided'] : []
       },
-      culturalFitScore: Math.round((overallScore + 70) / 2),
-      strengths: matchedSkills.length > 0 ? ['Skills match job requirements'] : ['Eager to learn'],
-      concerns: missingSkills.length > 0 ? ['Missing some key skills'] : [],
+      educationMatch: {
+        score: educationScore,
+        weightedScore: educationWeighted,
+        details: candidateInfo.education || 'Not specified'
+      },
+      strengths,
+      weaknesses,
+      selectionReason,
       interviewQuestions: [
         'Tell me about your experience with ' + (jobSkills[0] || 'the required skills'),
+        'Describe a relevant project you worked on',
         'How do you handle ' + (jobInfo.responsibilities?.split(',')[0] || 'challenging situations') + '?',
-        'Why are you interested in this role?'
+        'Why are you interested in this role?',
+        'What are your career goals for the next 2-3 years?'
       ],
       recommendation: overallScore >= 70 ? 'Strong candidate - recommend interview' : 'Consider for interview based on availability'
     };
