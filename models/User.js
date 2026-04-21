@@ -340,6 +340,10 @@ userSchema.methods.toProfileJSON = function() {
   obj.isProfileComplete = obj.profileCompletionPercentage >= 80;
   obj.lastProfileUpdate = this.updatedAt;
   
+  // Add profile fields to root level for easier access
+  obj.profilePhoto = this.profile?.profilePhoto || '';
+  obj.resume = this.profile?.resume?.url || this.profile?.resume || '';
+  
   return obj;
 };
 

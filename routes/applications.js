@@ -131,7 +131,19 @@ router.get('/for-my-jobs', protect, companyOnly, async (req, res) => {
         $project: {
           _id: 1, status: 1, coverLetter: 1, createdAt: 1, updatedAt: 1,
           jobId: { _id: '$jobId._id', title: '$jobId.title' },
-          userId: { _id: '$userId._id', name: '$userId.name', email: '$userId.email', profile: '$userId.profile' },
+          userId: { 
+            _id: '$userId._id', 
+            name: '$userId.name', 
+            email: '$userId.email',
+            profilePhoto: '$userId.profile.profilePhoto',
+            phone: '$userId.profile.phone',
+            city: '$userId.profile.location',
+            skills: '$userId.profile.skills',
+            experience: '$userId.profile.experience',
+            education: '$userId.profile.education',
+            bio: '$userId.profile.bio',
+            resume: '$userId.profile.resume.url'
+          },
           aiScreening: 1, resume: 1, skills: 1
         }
       }

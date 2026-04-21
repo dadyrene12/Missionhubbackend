@@ -708,10 +708,13 @@ router.get('/screening/candidate/:applicationId', protect, async (req, res) => {
 
 router.post('/analyze-jobs', protect, async (req, res) => {
   try {
-    const adminUser = req.user;
+    const currentUser = req.user;
+    const isAdmin = currentUser.userType === 'super_admin' || currentUser.role === 'admin';
+    const isJobSeeker = currentUser.userType === 'jobSeeker';
     
-    if (adminUser.userType !== 'super_admin' && adminUser.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Admin access required' });
+    // Allow both admins and job seekers to use this endpoint
+    if (!isAdmin && !isJobSeeker) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
     const { minMatchScore = 50, limit = 50 } = req.body;
