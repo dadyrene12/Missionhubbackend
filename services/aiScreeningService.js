@@ -164,15 +164,21 @@ class AIScreeningService {
       benefits: job.benefits || ''
     };
 
-    const prompt = `You are an expert HR recruitment assistant. Analyze the following candidate for the job position and provide a detailed screening result in JSON format.
+    const prompt = `You are an expert HR recruitment assistant. Analyze the candidate's CV and profile against the job requirements. 
 
-SCORING CRITERIA:
+MUST ANALYZE ALL 4 ASPECTS:
+1. SKILLS (40%): Analyze candidate skills vs required skills
+2. EXPERIENCE (30%): Analyze years and relevance of experience  
+3. PROJECTS/ACHIEVEMENTS (20%): Analyze projects, achievements, and accomplishments
+4. EDUCATION (10%): Analyze education background and qualifications
+
+SCORING WEIGHTS:
 - Skills Match: 40%
 - Experience: 30%
 - Projects/Achievements: 20%
 - Education: 10%
 
-CANDIDATE:
+CANDIDATE PROFILE:
 - Name: ${candidateInfo.name}
 - Email: ${candidateInfo.email}
 - Skills: ${candidateInfo.skills.join(', ')}
@@ -180,9 +186,9 @@ CANDIDATE:
 - Education: ${candidateInfo.education}
 - Current Title: ${candidateInfo.title}
 - Bio: ${candidateInfo.bio}
-- Resume: ${candidateInfo.resume}
+- Resume/CV: ${candidateInfo.resume}
 
-JOB:
+JOB REQUIREMENTS:
 - Title: ${jobInfo.title}
 - Description: ${jobInfo.description}
 - Requirements: ${jobInfo.requirements}
@@ -192,39 +198,38 @@ JOB:
 - Education Required: ${jobInfo.education}
 - Location: ${jobInfo.location}
 - Type: ${jobInfo.type}
-- Benefits: ${jobInfo.benefits}
 
-Provide a JSON response with these exact fields (scores should be weighted: Skills 40%, Experience 30%, Projects 20%, Education 10%):
+Provide JSON with ALL these fields (overallScore must be 0-100):
 {
-  "overallScore": (0-100 weighted score),
+  "overallScore": (weighted total 0-100),
   "skillsMatch": {
-    "score": (0-100),
+    "score": (0-100 raw score),
     "weightedScore": (score × 0.40),
-    "matchedSkills": ["list of matched skills"],
-    "missingSkills": ["list of missing skills"]
+    "matchedSkills": ["matched skills"],
+    "missingSkills": ["missing skills"]
   },
   "experienceMatch": {
-    "score": (0-100),
+    "score": (0-100 raw score),
     "weightedScore": (score × 0.30),
-    "yearsMatch": "years of experience match",
-    "details": "brief explanation"
+    "yearsMatch": "experience match details",
+    "details": "experience analysis"
   },
   "projectsMatch": {
-    "score": (0-100),
+    "score": (0-100 raw score),
     "weightedScore": (score × 0.20),
-    "relevantProjects": ["list of relevant projects"],
-    "achievements": ["list of achievements"]
+    "relevantProjects": ["relevant projects"],
+    "achievements": ["achievements found"]
   },
   "educationMatch": {
-    "score": (0-100),
+    "score": (0-100 raw score),
     "weightedScore": (score × 0.10),
-    "details": "education details"
+    "details": "education analysis"
   },
-  "strengths": ["list of key candidate strengths (3-5)"],
-  "weaknesses": ["list of weaknesses or gaps (if any)"],
-  "selectionReason": "detailed reason why this candidate should be selected",
-  "interviewQuestions": ["3-5 recommended interview questions"],
-  "recommendation": "brief final recommendation"
+  "strengths": ["key strengths"],
+  "weaknesses": ["weaknesses or gaps"],
+  "selectionReason": "why should this candidate be selected",
+  "interviewQuestions": ["3-5 questions"],
+  "recommendation": "final recommendation"
 }`;
 
     let result = null;
