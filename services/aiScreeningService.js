@@ -334,7 +334,7 @@ Provide a JSON response with these exact fields (scores should be weighted: Skil
       interviewQuestions: [
         'Tell me about your experience with ' + (jobSkills[0] || 'the required skills'),
         'Describe a relevant project you worked on',
-        'How do you handle ' + (jobInfo.responsibilities?.split(',')[0] || 'challenging situations') + '?',
+        'How do you handle challenging situations?',
         'Why are you interested in this role?',
         'What are your career goals for the next 2-3 years?'
       ],
