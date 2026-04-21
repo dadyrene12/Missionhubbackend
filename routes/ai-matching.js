@@ -438,12 +438,11 @@ router.post('/screening/screen-candidate', protect, async (req, res) => {
 
     console.log('[AI Screening] Screening candidate for job:', job.title);
 
-    // Set custom API key and provider if provided
-    if (apiKey) {
-      aiScreeningService.setApiKey(apiKey);
-    }
+    // Set custom API key if provided
+    const customApiKey = apiKey || null;
+    const screeningProvider = provider || 'gemini';
 
-    const screeningResult = await aiScreeningService.screenCandidate(application, job, provider || 'gemini');
+    const screeningResult = await aiScreeningService.screenCandidate(application, job, screeningProvider, customApiKey);
 
     await Application.findByIdAndUpdate(applicationId, {
       aiScreening: screeningResult,

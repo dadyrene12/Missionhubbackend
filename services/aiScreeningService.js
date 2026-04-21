@@ -78,21 +78,25 @@ class AIScreeningService {
     }
   }
 
-  async callGeminiAI(prompt, temperature = 0.3) {
-    const apiKey = this.geminiApiKey || this.apiKey;
+  async callGeminiAI(prompt, temperature = 0.3, customApiKey = null) {
+    const apiKey = customApiKey || this.geminiApiKey || this.apiKey;
     if (!apiKey) {
-      console.warn('[AI Screening] No Gemini API key available');
+      console.error('[AI Screening] No Gemini API key available');
+      return null;
+    }
+    if (apiKey.length < 20) {
+      console.error('[AI Screening] Invalid API key length:', apiKey.length);
       return null;
     }
     try {
       console.log('[AI Screening] Calling Gemini API with key:', apiKey.substring(0, 10) + '...');
       
       const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8t:generateContent?key=${apiKey}`,
         {
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature,
+            temperature: temperature || 0.3,
             maxOutputTokens: 2048,
             topP: 0.95,
             topK: 40
@@ -100,23 +104,27 @@ class AIScreeningService {
         },
         {
           headers: { 'Content-Type': 'application/json' },
-          timeout: 30000
+          timeout: 45000
         }
       );
 
-      console.log('[AI Screening] Gemini response received');
-      return response.data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+      console.log('[AI Screening] Gemini response received, status:', response.status);
+      if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        console.error('[AI Screening] No content in response:', response.data);
+        return null;
+      }
+      return response.data.candidates[0].content.parts[0].text;
     } catch (error) {
       console.error('[AI Screening] Gemini API Error:', error.message);
       if (error.response) {
         console.error('[AI Screening] Response status:', error.response.status);
-        console.error('[AI Screening] Response data:', error.response.data);
+        console.error('[AI Screening] Response data:', JSON.stringify(error.response.data).substring(0, 500));
       }
       return null;
     }
   }
 
-  async screenCandidate(candidate, job, provider = 'claude') {
+  async screenCandidate(candidate, job, provider = 'gemini', customApiKey = null) {
     const cacheKey = this.getCacheKey(
       candidate._id?.toString() || candidate.userId?._id?.toString(),
       job._id?.toString()
@@ -125,18 +133,20 @@ class AIScreeningService {
     const cached = this.getFromCache(cacheKey);
     if (cached) return cached;
 
+    const userProfile = candidate.userId?.profile || {};
+    
     const candidateInfo = {
-      name: candidate.userId?.name || candidate.name || 'Unknown',
-      email: candidate.userId?.email || candidate.email || '',
-      skills: candidate.profile?.skills || candidate.skills || [],
-      experience: candidate.profile?.experience || candidate.experience || '',
-      education: candidate.profile?.education || candidate.education || '',
-      title: candidate.profile?.title || candidate.title || '',
-      bio: candidate.profile?.bio || candidate.bio || '',
+      name: candidate.userId?.name || candidate.name || candidate.applicantName || 'Unknown',
+      email: candidate.userId?.email || candidate.email || candidate.applicantEmail || '',
+      skills: userProfile.skills || candidate.skills || [],
+      experience: userProfile.experience || candidate.experience || '',
+      education: userProfile.education || candidate.education || '',
+      title: userProfile.title || candidate.title || '',
+      bio: userProfile.bio || candidate.bio || '',
       resume: typeof (candidate.resume || candidate.coverLetter || '') === 'string'
         ? (candidate.resume || candidate.coverLetter || '').substring(0, 1000)
         : '',
-      experienceDetails: candidate.profile?.experienceDetails || []
+      experienceDetails: userProfile.experienceDetails || []
     };
 
     const jobInfo = {
@@ -204,7 +214,7 @@ Provide a JSON response with these exact fields:
     let result = null;
     
     if (provider === 'gemini') {
-      result = await this.callGeminiAI(prompt);
+      result = await this.callGeminiAI(prompt, 0.3, customApiKey);
     } else {
       result = await this.callClaudeAI([
         { role: 'system', content: 'You are a professional HR screening assistant. Always respond with valid JSON.' },
