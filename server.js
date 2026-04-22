@@ -3630,12 +3630,19 @@ app.delete('/api/notifications/:id', protect, async (req, res) => {
 app.get('/api/notifications/unread-count', protect, async (req, res) => {
   try {
     const userId = req.user.id;
-    
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
     const unreadCount = await Notification.countDocuments({
       userId: userId,
       read: false
     });
-    
+
     res.status(200).json({
       success: true,
       unreadCount
@@ -3644,7 +3651,7 @@ app.get('/api/notifications/unread-count', protect, async (req, res) => {
     console.error('Get unread notification count error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while fetching unread count'
+      message: error.message || 'Server error while fetching unread count'
     });
   }
 });
