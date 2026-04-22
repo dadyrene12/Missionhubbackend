@@ -346,6 +346,30 @@ Provide JSON with ALL these fields (overallScore must be 0-100):
       recommendation: overallScore >= 70 ? 'Strong candidate - recommend interview' : 'Consider for interview based on availability'
     };
   }
+
+  async batchScreenCandidates(applications, job) {
+    const results = [];
+    const jobSkills = job.requiredSkills || job.skills || [];
+    
+    for (const application of applications) {
+      try {
+        const result = await this.screenCandidate(application, job, 'claude', this.apiKey);
+        results.push({
+          applicationId: application._id,
+          candidateId: application.userId?._id || application.userId,
+          ...result
+        });
+      } catch (error) {
+        console.error(`Error screening application ${application._id}:`, error);
+        results.push({
+          applicationId: application._id,
+          error: error.message
+        });
+      }
+    }
+    
+    return results;
+  }
 }
 
 module.exports = new AIScreeningService();

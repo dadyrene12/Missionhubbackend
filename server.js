@@ -422,12 +422,17 @@ app.get('/api/resume/:filename', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin');
     
     const filename = req.params.filename;
+    console.log('Resume request for file:', filename);
     const filePath = path.join(__dirname, 'uploads', 'resumes', filename);
     
     // Verify file exists
     const fs = require('fs');
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'Resume file not found' });
+      console.log('Resume file not found:', filePath);
+      // List available files for debugging
+      const files = fs.readdirSync(path.join(__dirname, 'uploads', 'resumes'));
+      console.log('Available resume files:', files.slice(0, 5));
+      return res.status(404).json({ success: false, message: 'Resume file not found on server' });
     }
     
     // Set correct Content-Type for PDFs
@@ -1956,7 +1961,8 @@ app.get('/api/users/me', protect, async (req, res) => {
           portfolio: profileData.portfolio || '',
           resume: profileData.resume || null,
           cv: profileData.cv || null,
-          documents: profileData.documents || []
+          documents: profileData.documents || [],
+          profilePhoto: profileData.profilePhoto || null
         }
       }
     });
