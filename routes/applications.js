@@ -144,7 +144,7 @@ router.get('/for-my-jobs', protect, companyOnly, async (req, res) => {
             bio: '$userId.profile.bio',
             resume: '$userId.profile.resume.url'
           },
-          aiScreening: 1, resume: 1, skills: 1
+          aiScreening: 1,
         }
       }
     ]);
