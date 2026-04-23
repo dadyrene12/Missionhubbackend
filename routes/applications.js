@@ -94,6 +94,12 @@ router.get('/company', protect, companyOnly, async (req, res) => {
       portfolio: app.userId?.profile?.portfolio || null,
       yearsOfExperience: app.userId?.profile?.yearsOfExperience || null,
       desiredSalary: app.userId?.profile?.desiredSalary || null,
+      userId: {
+        _id: app.userId?._id,
+        name: app.userId?.name,
+        email: app.userId?.email,
+        resume: app.userId?.profile?.resume || null,
+      }
     }));
 
     res.json({ success: true, data: transformedApps });
@@ -142,7 +148,7 @@ router.get('/for-my-jobs', protect, companyOnly, async (req, res) => {
             experience: '$userId.profile.experience',
             education: '$userId.profile.education',
             bio: '$userId.profile.bio',
-            resume: '$userId.profile.resume.url'
+            resume: '$userId.profile.resume'
           },
           aiScreening: 1,
         }

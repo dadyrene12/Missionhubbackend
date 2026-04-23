@@ -433,14 +433,18 @@ app.get('/api/file/:type/:filename', async (req, res) => {
     
     const fs = require('fs');
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ success: false, message: 'File not found' });
+      console.log(`File not found: ${type}/${filename}`);
+      return res.status(404).json({ 
+        success: false, 
+        message: 'The document file could not be found. It may have been removed or was not uploaded successfully. Please ask the applicant to re-upload their resume.'
+      });
     }
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline');
     res.sendFile(filePath);
   } catch (error) {
-    res.status(401).json({ success: false, message: 'Invalid token' });
+    res.status(401).json({ success: false, message: 'Invalid or expired token. Please refresh and try again.' });
   }
 });
 
@@ -456,7 +460,12 @@ app.get('/api/resume/:filename', async (req, res) => {
     
     // Verify token
     const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin');
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin');
+    } catch (err) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired token. Please refresh and try again.' });
+    }
     
     const filename = req.params.filename;
     console.log('Resume request for file:', filename);
@@ -466,10 +475,10 @@ app.get('/api/resume/:filename', async (req, res) => {
     const fs = require('fs');
     if (!fs.existsSync(filePath)) {
       console.log('Resume file not found:', filePath);
-      // List available files for debugging
-      const files = fs.readdirSync(path.join(__dirname, 'uploads', 'resumes'));
-      console.log('Available resume files:', files.slice(0, 5));
-      return res.status(404).json({ success: false, message: 'Resume file not found on server' });
+      return res.status(404).json({ 
+        success: false, 
+        message: 'The resume file could not be found. It may have been removed or was not uploaded successfully. Please ask the applicant to re-upload their resume.'
+      });
     }
     
     // Set correct Content-Type for PDFs
@@ -480,7 +489,7 @@ app.get('/api/resume/:filename', async (req, res) => {
     res.sendFile(filePath);
   } catch (error) {
     console.error('Error serving resume:', error);
-    res.status(401).json({ success: false, message: 'Invalid or expired token' });
+    res.status(500).json({ success: false, message: 'An error occurred while loading the resume. Please try again later.' });
   }
 });
 
