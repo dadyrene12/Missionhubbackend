@@ -268,24 +268,24 @@ router.post('/schedule', protect, async (req, res) => {
         subject: `Interview Scheduled: ${jobInfo?.title || 'Position'} at ${companyInfo?.name || 'Company'}`,
         message: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 20px; text-align: center; margin: 0; border-radius: 12px 12px 0 0;">
-              Interview Scheduled! 🎉
+            <h2 style="color: #fff; background: linear-gradient(135deg, #020617, #1e293b); padding: 20px; text-align: center; margin: 0; border-radius: 12px 12px 0 0;">
+              Interview Scheduled!
             </h2>
-            <div style="background: #fff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-              <p style="font-size: 16px;">Dear <strong>${candidate.name || 'Candidate'}</strong>,</p>
+            <div style="background: #ffffff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <p style="font-size: 16px; color: #1e293b;">Dear <strong>${candidate.name || 'Candidate'}</strong>,</p>
               <p style="font-size: 16px; color: #475569;">Great news! Your interview has been scheduled. Please find the details below.</p>
               ${customMessageSection}
-              <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #6366f1;">
-                <h3 style="color: #4338ca; margin-top: 0;">📅 Interview Details</h3>
+              <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #020617;">
+                <h3 style="color: #020617; margin-top: 0;">Interview Details</h3>
                 <table style="width: 100%;">
-                  <tr><td style="padding: 8px 0; color: #64748b;"><strong>🏢 Company:</strong></td><td style="padding: 8px 0;">${companyInfo?.name || 'Company'}</td></tr>
-                  <tr><td style="padding: 8px 0; color: #64748b;"><strong>💼 Position:</strong></td><td style="padding: 8px 0;">${jobInfo?.title || 'Position'}</td></tr>
-                  <tr><td style="padding: 8px 0; color: #64748b;"><strong>📆 Date:</strong></td><td style="padding: 8px 0;">${new Date(scheduledDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
-                  <tr><td style="padding: 8px 0; color: #64748b;"><strong>⏰ Time:</strong></td><td style="padding: 8px 0;">${new Date(scheduledDate).toLocaleTimeString()}</td></tr>
-                  <tr><td style="padding: 8px 0; color: #64748b;"><strong>📝 Type:</strong></td><td style="padding: 8px 0;">${type || 'Video'} Call</td></tr>
-                  <tr><td style="padding: 8px 0; color: #64748b;"><strong>⏱️ Duration:</strong></td><td style="padding: 8px 0;">${parseInt(duration) || 60} minutes</td></tr>
-                  ${location ? `<tr><td style="padding: 8px 0; color: #64748b;"><strong>📍 Location:</strong></td><td style="padding: 8px 0;">${location}</td></tr>` : ''}
-                  ${meetingLink ? `<tr><td style="padding: 8px 0; color: #64748b;"><strong>🔗 Meeting Link:</strong></td><td style="padding: 8px 0;"><a href="${meetingLink}" style="color: #6366f1;">${meetingLink}</a></td></tr>` : ''}
+                  <tr><td style="padding: 8px 0; color: #64748b;">Company:</td><td style="padding: 8px 0; color: #1e293b;">${companyInfo?.name || 'Company'}</td></tr>
+                  <tr><td style="padding: 8px 0; color: #64748b;">Position:</td><td style="padding: 8px 0; color: #1e293b;">${jobInfo?.title || 'Position'}</td></tr>
+                  <tr><td style="padding: 8px 0; color: #64748b;">Date:</td><td style="padding: 8px 0; color: #1e293b;">${new Date(scheduledDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
+                  <tr><td style="padding: 8px 0; color: #64748b;">Time:</td><td style="padding: 8px 0; color: #1e293b;">${new Date(scheduledDate).toLocaleTimeString()}</td></tr>
+                  <tr><td style="padding: 8px 0; color: #64748b;">Type:</td><td style="padding: 8px 0; color: #1e293b;">${type || 'Video'} Call</td></tr>
+                  <tr><td style="padding: 8px 0; color: #64748b;">Duration:</td><td style="padding: 8px 0; color: #1e293b;">${parseInt(duration) || 60} minutes</td></tr>
+                  ${location ? `<tr><td style="padding: 8px 0; color: #64748b;">Location:</td><td style="padding: 8px 0; color: #1e293b;">${location}</td></tr>` : ''}
+                  ${meetingLink ? `<tr><td style="padding: 8px 0; color: #64748b;">Meeting Link:</td><td style="padding: 8px 0;"><a href="${meetingLink}" style="color: #020617;">${meetingLink}</a></td></tr>` : ''}
                 </table>
               </div>
               ${notesSection}
@@ -390,23 +390,23 @@ router.post('/schedule-batch', protect, async (req, res) => {
           subject: `Interview Scheduled: ${jobInfo?.title || 'Position'} at ${company?.name || 'Company'}`,
           message: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 20px; text-align: center; margin: 0; border-radius: 12px 12px 0 0;">
-                Interview Scheduled! 🎉
+              <h2 style="color: #fff; background: linear-gradient(135deg, #020617, #1e293b); padding: 20px; text-align: center; margin: 0; border-radius: 12px 12px 0 0;">
+                Interview Scheduled!
               </h2>
-              <div style="background: #fff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-                <p style="font-size: 16px;">Dear <strong>${candidate.name || 'Candidate'}</strong>,</p>
+              <div style="background: #ffffff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <p style="font-size: 16px; color: #1e293b;">Dear <strong>${candidate.name || 'Candidate'}</strong>,</p>
                 <p style="font-size: 16px; color: #475569;">Great news! Your interview has been scheduled. Please find the details below.</p>
-                <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #6366f1;">
-                  <h3 style="color: #4338ca; margin-top: 0;">📅 Interview Details</h3>
+                <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #020617;">
+                  <h3 style="color: #020617; margin-top: 0;">Interview Details</h3>
                   <table style="width: 100%;">
-                    <tr><td style="padding: 8px 0; color: #64748b;"><strong>🏢 Company:</strong></td><td style="padding: 8px 0;">${company?.name || 'Company'}</td></tr>
-                    <tr><td style="padding: 8px 0; color: #64748b;"><strong>💼 Position:</strong></td><td style="padding: 8px 0;">${jobInfo?.title || 'Position'}</td></tr>
-                    <tr><td style="padding: 8px 0; color: #64748b;"><strong>📆 Date:</strong></td><td style="padding: 8px 0;">${scheduledDateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
-                    <tr><td style="padding: 8px 0; color: #64748b;"><strong>⏰ Time:</strong></td><td style="padding: 8px 0;">${scheduledDateObj.toLocaleTimeString()}</td></tr>
-                    <tr><td style="padding: 8px 0; color: #64748b;"><strong>📝 Type:</strong></td><td style="padding: 8px 0;">${type || 'Video'} Call</td></tr>
-                    <tr><td style="padding: 8px 0; color: #64748b;"><strong>⏱️ Duration:</strong></td><td style="padding: 8px 0;">${parseInt(duration) || 60} minutes</td></tr>
-                    ${location ? `<tr><td style="padding: 8px 0; color: #64748b;"><strong>📍 Location:</strong></td><td style="padding: 8px 0;">${location}</td></tr>` : ''}
-                    ${meetingLink ? `<tr><td style="padding: 8px 0; color: #64748b;"><strong>🔗 Meeting Link:</strong></td><td style="padding: 8px 0;"><a href="${meetingLink}" style="color: #6366f1;">${meetingLink}</a></td></tr>` : ''}
+                    <tr><td style="padding: 8px 0; color: #64748b;">Company:</td><td style="padding: 8px 0; color: #1e293b;">${company?.name || 'Company'}</td></tr>
+                    <tr><td style="padding: 8px 0; color: #64748b;">Position:</td><td style="padding: 8px 0; color: #1e293b;">${jobInfo?.title || 'Position'}</td></tr>
+                    <tr><td style="padding: 8px 0; color: #64748b;">Date:</td><td style="padding: 8px 0; color: #1e293b;">${scheduledDateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
+                    <tr><td style="padding: 8px 0; color: #64748b;">Time:</td><td style="padding: 8px 0; color: #1e293b;">${scheduledDateObj.toLocaleTimeString()}</td></tr>
+                    <tr><td style="padding: 8px 0; color: #64748b;">Type:</td><td style="padding: 8px 0; color: #1e293b;">${type || 'Video'} Call</td></tr>
+                    <tr><td style="padding: 8px 0; color: #64748b;">Duration:</td><td style="padding: 8px 0; color: #1e293b;">${parseInt(duration) || 60} minutes</td></tr>
+                    ${location ? `<tr><td style="padding: 8px 0; color: #64748b;">Location:</td><td style="padding: 8px 0; color: #1e293b;">${location}</td></tr>` : ''}
+                    ${meetingLink ? `<tr><td style="padding: 8px 0; color: #64748b;">Meeting Link:</td><td style="padding: 8px 0;"><a href="${meetingLink}" style="color: #020617;">${meetingLink}</a></td></tr>` : ''}
                   </table>
                 </div>
                 ${notes ? `<div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0;"><p style="color: #64748b; font-size: 14px; margin: 0;"><strong>Additional Notes:</strong></p><p style="white-space: pre-line; color: #475569; font-size: 14px; margin: 5px 0 0 0;">${notes}</p></div>` : ''}
@@ -468,21 +468,21 @@ router.post('/:id/reminder', protect, async (req, res) => {
         subject: `Reminder: Interview Tomorrow - ${jobInfo?.title || 'Position'}`,
         message: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #fff; background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 20px; text-align: center; margin: 0; border-radius: 12px 12px 0 0;">
+            <h2 style="color: #fff; background: linear-gradient(135deg, #020617, #1e293b); padding: 20px; text-align: center; margin: 0; border-radius: 12px 12px 0 0;">
               Interview Reminder
             </h2>
-            <div style="background: #fff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-              <p style="font-size: 16px;">Dear <strong>${candidate.name || 'Candidate'}</strong>,</p>
-              <p style="font-size: 16px;">This is a reminder about your upcoming interview:</p>
-              <div style="background: #fef3c7; padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+            <div style="background: #ffffff; padding: 30px; border-radius: 0 0 12px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <p style="font-size: 16px; color: #1e293b;">Dear <strong>${candidate.name || 'Candidate'}</strong>,</p>
+              <p style="font-size: 16px; color: #334155;">This is a reminder about your upcoming interview:</p>
+              <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
                 <h3 style="color: #92400e; margin-top: 0;">Upcoming Interview</h3>
-                <p style="margin: 8px 0;"><strong>Date:</strong> ${new Date(interview.scheduledDate).toLocaleDateString()}</p>
-                <p style="margin: 8px 0;"><strong>Time:</strong> ${new Date(interview.scheduledDate).toLocaleTimeString()}</p>
-                <p style="margin: 8px 0;"><strong>Position:</strong> ${jobInfo?.title || 'Position'}</p>
-                ${interview.meetingLink ? `<p style="margin: 8px 0;"><strong>Meeting Link:</strong> <a href="${interview.meetingLink}" style="color: #3b82f6;">${interview.meetingLink}</a></p>` : ''}
+                <p style="margin: 8px 0; color: #1e293b;"><strong>Date:</strong> ${new Date(interview.scheduledDate).toLocaleDateString()}</p>
+                <p style="margin: 8px 0; color: #1e293b;"><strong>Time:</strong> ${new Date(interview.scheduledDate).toLocaleTimeString()}</p>
+                <p style="margin: 8px 0; color: #1e293b;"><strong>Position:</strong> ${jobInfo?.title || 'Position'}</p>
+                ${interview.meetingLink ? `<p style="margin: 8px 0; color: #1e293b;"><strong>Meeting Link:</strong> <a href="${interview.meetingLink}" style="color: #020617;">${interview.meetingLink}</a></p>` : ''}
               </div>
-              <p style="font-size: 14px;">Please be ready 5-10 minutes before the scheduled time.</p>
-              <p style="font-size: 14px; color: #888; margin-top: 30px;">Best regards,<br><strong>MissionHub Team</strong></p>
+              <p style="font-size: 14px; color: #64748b;">Please be ready 5-10 minutes before the scheduled time.</p>
+              <p style="font-size: 14px; color: #94a3b8; margin-top: 30px;">Best regards,<br><strong>MissionHub Team</strong></p>
             </div>
           </div>
         `

@@ -763,41 +763,41 @@ app.post('/api/test-email', async (req, res) => {
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
           <tr>
-            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
-              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
-              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            <td style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 32px 40px; text-align: center;">
+              <table width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
+              <div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="8" fill="#020617"/><path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              </td></tr></table>
             </td>
           </tr>
           <tr>
-            <td style="height: 4px; background: linear-gradient(90deg, #4F46E5, #7C3AED);"></td>
-          </tr>
-          <tr>
-            <td style="padding: 40px; color: #1F2937;">
-              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937; text-align: center;">✅ Email Configuration Working!</h1>
-              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px; text-align: center;">Your MissionHub email is configured correctly</p>
+            <td style="padding: 40px; color: #1e293b;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #020617; text-align: center;">Email Configuration Working</h1>
+              <p style="margin: 0 0 24px 0; color: #64748b; font-size: 14px; text-align: center;">Your MissionHub email is configured correctly</p>
               
-              <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%); border-left: 4px solid #10B981; padding: 20px; border-radius: 0 12px 12px 0; margin: 24px 0;">
-                <p style="margin: 0; color: #1F2937; font-size: 14px;">
+              <div style="background: #f8fafc; border-left: 4px solid #10b981; padding: 20px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #1e293b; font-size: 14px;">
                   <strong>Server Time:</strong> ${new Date().toString()}<br><br>
                   <strong>Recipient:</strong> ${testEmail}<br><br>
-                  <strong>Status:</strong> <span style="color: #10B981; font-weight: bold;">Active</span>
+                  <strong>Status:</strong> <span style="color: #059669; font-weight: bold;">Active</span>
                 </p>
               </div>
               
-              <p style="color: #6B7280; font-size: 14px; text-align: center; margin-top: 24px;">
+              <p style="color: #64748b; font-size: 14px; text-align: center; margin-top: 24px;">
                 You can now receive verification codes and other notifications.
               </p>
             </td>
           </tr>
           <tr>
-            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+            <td style="background-color: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="text-align: center;">
-                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
-                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #64748b;">MissionHub — Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
                   </td>
                 </tr>
               </table>
@@ -878,44 +878,47 @@ app.post('/api/auth/resend-code', async (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MissionHub</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F9FAFB;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
           <tr>
-            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
-              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
-              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            <td style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 32px 40px; text-align: center;">
+              <table width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
+              <div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="8" fill="#020617"/><path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              </td></tr></table>
             </td>
           </tr>
           <tr>
-            <td style="height: 4px; background: linear-gradient(90deg, #4F46E5, #7C3AED);"></td>
+            <td style="height: 4px; background: #020617;"></td>
           </tr>
           <tr>
-            <td style="padding: 40px; color: #1F2937;">
-              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937;">Email Verification</h1>
-              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px;">Verify your email address</p>
+            <td style="padding: 40px; color: #1e293b;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #020617;">Email Verification</h1>
+              <p style="margin: 0 0 24px 0; color: #64748b; font-size: 14px;">Verify your email address</p>
               
-              <p style="color: #1F2937; line-height: 1.6;">Use the verification code below to verify your email address:</p>
+              <p style="color: #334155; line-height: 1.6;">Use the verification code below to verify your email address:</p>
               
-              <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%); border: 2px dashed #4F46E5; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
-                <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">Your Verification Code</p>
-                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #4F46E5; font-family: 'Courier New', monospace;">${verificationCode}</p>
+              <div style="background: #f8fafc; border: 2px dashed #020617; border-radius: 8px; padding: 24px; text-align: center; margin: 24px 0;">
+                <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;">Your Verification Code</p>
+                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #020617; font-family: 'Courier New', monospace;">${verificationCode}</p>
               </div>
               
-              <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
-                <p style="margin: 0; color: #92400E; font-size: 14px;">This code will expire in <strong>13 hours</strong>.</p>
+              <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #92400e; font-size: 14px;">This code will expire in <strong>13 hours</strong>.</p>
               </div>
             </td>
           </tr>
           <tr>
-            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+            <td style="background-color: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="text-align: center;">
-                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
-                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #64748b;">MissionHub ��� Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
                   </td>
                 </tr>
               </table>
@@ -987,43 +990,46 @@ app.post('/api/auth/send-code', async (req, res) => {
   <title>MissionHub</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F9FAFB;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
           <tr>
-            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
-              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
-              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            <td style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 32px 40px; text-align: center;">
+              <table width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
+              <div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="8" fill="#020617"/><path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              </td></tr></table>
             </td>
           </tr>
           <tr>
-            <td style="height: 4px; background: linear-gradient(90deg, #4F46E5, #7C3AED);"></td>
+            <td style="height: 4px; background: #020617;"></td>
           </tr>
           <tr>
-            <td style="padding: 40px; color: #1F2937;">
-              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937;">Email Verification</h1>
-              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px;">Verify your email address</p>
+            <td style="padding: 40px; color: #1e293b;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #020617;">Email Verification</h1>
+              <p style="margin: 0 0 24px 0; color: #64748b; font-size: 14px;">Verify your email address</p>
               
-              <p style="color: #1F2937; line-height: 1.6;">Use the verification code below to verify your email address:</p>
+              <p style="color: #334155; line-height: 1.6;">Use the verification code below to verify your email address:</p>
               
-              <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%); border: 2px dashed #4F46E5; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
-                <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">Your Verification Code</p>
-                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #4F46E5; font-family: 'Courier New', monospace;">${verificationCode}</p>
+              <div style="background: #f8fafc; border: 2px dashed #020617; border-radius: 8px; padding: 24px; text-align: center; margin: 24px 0;">
+                <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;">Your Verification Code</p>
+                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #020617; font-family: 'Courier New', monospace;">${verificationCode}</p>
               </div>
               
-              <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
-                <p style="margin: 0; color: #92400E; font-size: 14px;">This code will expire in <strong>13 hours</strong>.</p>
+              <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #92400e; font-size: 14px;">This code will expire in <strong>13 hours</strong>.</p>
               </div>
             </td>
           </tr>
           <tr>
-            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+            <td style="background-color: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="text-align: center;">
-                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
-                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #64748b;">MissionHub ��� Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
                   </td>
                 </tr>
               </table>
@@ -1314,49 +1320,52 @@ app.post('/api/auth/register', async (req, res) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MissionHub</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F9FAFB;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F9FAFB;">
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8fafc;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 10px 20px rgba(0, 0, 0, 0.03); overflow: hidden;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
           <tr>
-            <td style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 32px 40px; text-align: center;">
-              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" width="180" height="45" style="display: inline-block; margin-bottom: 16px;">
-              <div style="width: 60px; height: 3px; background-color: rgba(255,255,255,0.5); margin: 0 auto; border-radius: 2px;"></div>
+            <td style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 32px 40px; text-align: center;">
+              <table width="100%" cellspacing="0" cellpadding="0"><tr><td align="center">
+              <div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="8" fill="#020617"/><path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              </td></tr></table>
             </td>
           </tr>
           <tr>
-            <td style="height: 4px; background: linear-gradient(90deg, #4F46E5, #7C3AED);"></td>
+            <td style="height: 4px; background: #020617;"></td>
           </tr>
           <tr>
-            <td style="padding: 40px; color: #1F2937;">
-              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1F2937;">Verify Your Email</h1>
-              <p style="margin: 0 0 24px 0; color: #6B7280; font-size: 14px;">Complete your registration</p>
+            <td style="padding: 40px; color: #1e293b;">
+              <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #020617;">Verify Your Email</h1>
+              <p style="margin: 0 0 24px 0; color: #64748b; font-size: 14px;">Complete your registration</p>
               
-              <p style="color: #1F2937; line-height: 1.6;">Hello <strong>${name}</strong>,</p>
-              <p style="color: #1F2937; line-height: 1.6; margin-bottom: 24px;">Welcome to MissionHub! Thank you for joining us. Please use the verification code below to complete your registration:</p>
+              <p style="color: #334155; line-height: 1.6;">Hello <strong>${name}</strong>,</p>
+              <p style="color: #334155; line-height: 1.6; margin-bottom: 24px;">Welcome to MissionHub! Thank you for joining us. Please use the verification code below to complete your registration:</p>
               
-              <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%); border: 2px dashed #4F46E5; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
-                <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">Your Verification Code</p>
-                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #4F46E5; font-family: 'Courier New', monospace;">${verificationCode}</p>
+              <div style="background: #f8fafc; border: 2px dashed #020617; border-radius: 8px; padding: 24px; text-align: center; margin: 24px 0;">
+                <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;">Your Verification Code</p>
+                <p style="margin: 0; font-size: 36px; font-weight: bold; letter-spacing: 12px; color: #020617; font-family: 'Courier New', monospace;">${verificationCode}</p>
               </div>
               
-              <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
-                <p style="margin: 0; color: #92400E; font-size: 14px;">This code will expire in <strong>10 minutes</strong>. Please verify your email soon.</p>
+              <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 24px 0;">
+                <p style="margin: 0; color: #92400e; font-size: 14px;">This code will expire in <strong>10 minutes</strong>. Please verify your email soon.</p>
               </div>
               
-              <p style="color: #6B7280; font-size: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #E5E7EB;">
+              <p style="color: #64748b; font-size: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
                 If you didn't create an account with MissionHub, please ignore this email.
               </p>
             </td>
           </tr>
           <tr>
-            <td style="background-color: #F3F4F6; padding: 24px 40px; border-top: 1px solid #E5E7EB;">
+            <td style="background-color: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                 <tr>
                   <td style="text-align: center;">
-                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #6B7280;">MissionHub — Connecting Talent with Opportunity</p>
-                    <p style="margin: 0; font-size: 12px; color: #9CA3AF;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #64748b;">MissionHub ��� Connecting Talent with Opportunity</p>
+                    <p style="margin: 0; font-size: 12px; color: #94a3b8;">&copy; ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
                   </td>
                 </tr>
               </table>
@@ -3750,7 +3759,7 @@ app.post('/api/notifications/send-email', protect, companyOnly, async (req, res)
     } else if (type === 'interview') {
       emailHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #3b82f6;">Interview Invitation</h2>
+          <h2 style="color: #020617;">Interview Invitation</h2>
           <p>Dear ${toName || 'Candidate'},</p>
           <p>Great news! You have been selected for an interview for the position of <strong>${jobTitle || 'the position'}</strong>.</p>
           <p>${body}</p>

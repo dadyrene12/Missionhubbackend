@@ -2227,11 +2227,11 @@ async function sendAnnouncementEmail(email, title, content, type) {
         subject: `[MissionHub] ${title}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 20px; text-align: center;">
+            <div style="background: linear-gradient(135deg, #020617, #1e293b); padding: 20px; text-align: center;">
               <h1 style="color: white; margin: 0;">MissionHub</h1>
             </div>
-            <div style="padding: 30px; background: #f8fafc;">
-              <h2 style="color: #1e293b;">${title}</h2>
+            <div style="padding: 30px; background: #ffffff;">
+              <h2 style="color: #020617;">${title}</h2>
               <p style="color: #475569; line-height: 1.6;">${content}</p>
               <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
                 <p style="color: #94a3b8; font-size: 12px;">This is an official announcement from MissionHub.</p>

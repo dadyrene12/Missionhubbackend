@@ -242,16 +242,16 @@ router.post('/talent-pool-reachout', protect, async (req, res) => {
         subject: `${companyName || company?.name || 'A company'} has a message for you`,
         message: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+            <div style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 20px; border-radius: 10px 10px 0 0;">
               <h2 style="color: white; margin: 0;">You've Received a Message!</h2>
             </div>
-            <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 10px 10px;">
-              <p style="color: #374151;">Hello ${recipient.name || 'there'},</p>
-              <p style="color: #374151;">${companyName || company?.name || 'A company'} has sent you a message from their Talent Pool.</p>
-              ${jobTitle ? `<p style="color: #374151;"><strong>Position:</strong> ${jobTitle}</p>` : ''}
-              <a href="http://localhost:5173/messages" style="display: inline-block; background: #8b5cf6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 15px;">View Message</a>
+            <div style="background: #ffffff; padding: 20px; border-radius: 0 0 10px 10px;">
+              <p style="color: #1e293b;">Hello ${recipient.name || 'there'},</p>
+              <p style="color: #334155;">${companyName || company?.name || 'A company'} has sent you a message from their Talent Pool.</p>
+              ${jobTitle ? `<p style="color: #334155;"><strong>Position:</strong> ${jobTitle}</p>` : ''}
+              <a href="http://localhost:5173/messages" style="display: inline-block; background: #020617; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 15px;">View Message</a>
             </div>
-            <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 20px;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-top: 20px;">
               This message was sent to you because your profile is in our Talent Pool.
             </p>
           </div>

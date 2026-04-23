@@ -254,8 +254,15 @@ router.post('/', protect, async (req, res) => {
     }
 
     const user = await User.findById(req.user._id).select('profile').lean();
-    const profileResume = user?.profile?.resume || null;
-    const applicationResume = resume || profileResume;
+    let profileResume = user?.profile?.resume || user?.resumeUrl || user?.resume?.url || null;
+    
+    // Convert string resume to object if needed
+    let applicationResume = null;
+    if (resume) {
+      applicationResume = typeof resume === 'string' ? { url: resume, name: resume.split('/').pop(), uploadDate: new Date() } : resume;
+    } else if (profileResume) {
+      applicationResume = typeof profileResume === 'string' ? { url: profileResume, name: profileResume.split('/').pop(), uploadDate: new Date() } : profileResume;
+    }
 
     const application = await Application.create({
       jobId,
@@ -314,37 +321,105 @@ router.post('/', protect, async (req, res) => {
           : '';
 
         const emailHtml = `
-          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-            <div style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); padding: 30px; text-align: center;">
-              <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
-              <h2 style="color: white; margin: 0; font-size: 22px;">New Job Application</h2>
-            </div>
-            <div style="padding: 30px;">
-              <p style="color: #1f2937; font-size: 16px;">Hello,</p>
-              <p style="color: #1f2937; font-size: 16px;"><strong>${req.user.name || 'A candidate'}</strong> has applied for the position of <strong>${job.title}</strong>.</p>
-              
-              <div style="background: #F3F4F6; border-radius: 12px; padding: 20px; margin: 20px 0;">
-                <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 16px;">Applicant Details</h3>
-                <p style="color: #6B7280; margin: 5px 0; font-size: 14px;">
-                  <strong>Name:</strong> ${req.user.name || 'Not provided'}
-                </p>
-                <p style="color: #6B7280; margin: 5px 0; font-size: 14px;">
-                  <strong>Email:</strong> ${req.user.email}
-                </p>
-                ${user?.profile?.title ? `<p style="color: #6B7280; margin: 5px 0; font-size: 14px;"><strong>Title:</strong> ${user.profile.title}</p>` : ''}
-                ${user?.profile?.location ? `<p style="color: #6B7280; margin: 5px 0; font-size: 14px;"><strong>Location:</strong> ${user.profile.location}</p>` : ''}
-                ${user?.profile?.yearsOfExperience ? `<p style="color: #6B7280; margin: 5px 0; font-size: 14px;"><strong>Experience:</strong> ${user.profile.yearsOfExperience} years</p>` : ''}
-                ${skillsText}
-              </div>
-              
-              <div style="text-align: center; margin: 25px 0;">
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/company/applications/${application._id}" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white; text-decoration: none; font-weight: 600; border-radius: 8px;">View Application</a>
-              </div>
-            </div>
-            <div style="background: #F9FAFB; padding: 20px; text-align: center; border-top: 1px solid #E5E7EB;">
-              <p style="color: #9CA3AF; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
-            </div>
-          </div>
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+              <tr>
+                <td align="center">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 32px 24px; text-align: center;">
+                        <div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="32" height="32" rx="8" fill="#020617"/>
+                            <path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </div>
+                        <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">New Job Application</h1>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 32px 24px;">
+                        <p style="color: #1e293b; font-size: 16px; margin: 0 0 16px 0;">Hello,</p>
+                        <p style="color: #1e293b; font-size: 16px; margin: 0 0 24px 0;">
+                          <strong style="color: #020617;">${req.user.name || 'A candidate'}</strong> has applied for the position of <strong style="color: #020617;">${job.title}</strong>.
+                        </p>
+                        
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 20px; margin: 24px 0;">
+                          <h3 style="color: #020617; margin: 0 0 16px 0; font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Applicant Details</h3>
+                          <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 14px;">Name</span>
+                              </td>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">
+                                <span style="color: #1e293b; font-size: 14px; font-weight: 500;">${req.user.name || 'Not provided'}</span>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 14px;">Email</span>
+                              </td>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">
+                                <span style="color: #1e293b; font-size: 14px;">${req.user.email}</span>
+                              </td>
+                            </tr>
+                            ${user?.profile?.title ? `
+                            <tr>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 14px;">Title</span>
+                              </td>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">
+                                <span style="color: #1e293b; font-size: 14px;">${user.profile.title}</span>
+                              </td>
+                            </tr>` : ''}
+                            ${user?.profile?.location ? `
+                            <tr>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 14px;">Location</span>
+                              </td>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">
+                                <span style="color: #1e293b; font-size: 14px;">${user.profile.location}</span>
+                              </td>
+                            </tr>` : ''}
+                            ${user?.profile?.yearsOfExperience ? `
+                            <tr>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0;">
+                                <span style="color: #64748b; font-size: 14px;">Experience</span>
+                              </td>
+                              <td style="padding: 6px 0; border-bottom: 1px solid #e2e8f0; text-align: right;">
+                                <span style="color: #1e293b; font-size: 14px;">${user.profile.yearsOfExperience} years</span>
+                              </td>
+                            </tr>` : ''}
+                            ${skillsText}
+                          </table>
+                        </div>
+                        
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td align="center">
+                              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/company/applications/${application._id}" style="display: inline-block; padding: 14px 32px; background: #020617; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 15px; border-radius: 8px;">View Application</a>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background: #f8fafc; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+                        <p style="color: #94a3b8; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+          </html>
         `;
 
         const companyUser = await User.findById(companyUserId);
@@ -517,22 +592,34 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
         if (customMessage) {
           emailSubject = subject || `Update on Your Application for ${jobTitle}`;
           emailHtml = `
-<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-  <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 40px 30px; text-align: center;">
-    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
-    <h2 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Application Update</h2>
-  </div>
-  <div style="padding: 40px 30px;">
-    <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
-    <div style="background: #f3f4f6; border-radius: 12px; padding: 20px; margin: 20px 0; border-left: 4px solid #6366f1;">
-      <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0;">${customMessage.replace(/\n/g, '</p><p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0;">')}</p>
-    </div>
-    <p style="color: #9ca3af; font-size: 13px; margin: 30px 0 0;">Best regards,<br/><strong style="color: #1f2937;">The ${companyName} Team</strong></p>
-  </div>
-  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-    <p style="color: #9ca3af; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
-  </div>
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+<tr><td style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 32px 24px; text-align: center;">
+<div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="8" fill="#020617"/><path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </div>
+<h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">Application Update</h1>
+</td></tr>
+<tr><td style="padding: 32px 24px;">
+<p style="color: #1e293b; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
+<div style="background: #f8fafc; border-left: 4px solid #020617; border-radius: 0 8px 8px 0; padding: 20px; margin: 20px 0;">
+<p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0;">${customMessage.replace(/\n/g, '</p><p style="color: #334155; font-size: 15px; line-height: 1.6; margin: 0;">')}</p>
+</div>
+<p style="color: #94a3b8; font-size: 13px; margin: 30px 0 0;">Best regards,<br/><strong style="color: #1e293b;">The ${companyName} Team</strong></p>
+</td></tr>
+<tr><td style="background: #f8fafc; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+<p style="color: #94a3b8; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
           `;
         } else {
           // Use status-specific templates
@@ -540,69 +627,104 @@ router.put('/:id/status', protect, companyOnly, async (req, res) => {
             case 'reviewed':
               emailSubject = `Your Application for ${jobTitle} is Under Review`;
               emailHtml = `
-<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-  <div style="background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%); padding: 40px 30px; text-align: center;">
-    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
-    <h2 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Application Under Review</h2>
-  </div>
-  <div style="padding: 40px 30px;">
-    <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
-    <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">Great news! Your application for the position of <strong style="color: #1f2937;">${jobTitle}</strong> at <strong style="color: #1f2937;">${companyName}</strong> is now being reviewed by our hiring team.</p>
-    <div style="background: #f3f4f6; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
-      <p style="color: #6b7280; font-size: 14px; margin: 0;">We will keep you updated on any further progress.</p>
-    </div>
-    <p style="color: #9ca3af; font-size: 13px; margin: 30px 0 0;">Best regards,<br/><strong style="color: #1f2937;">The ${companyName} Hiring Team</strong></p>
-  </div>
-  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-    <p style="color: #9ca3af; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
-  </div>
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+<tr><td style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 32px 24px; text-align: center;">
+<div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="8" fill="#020617"/><path d="M8 16L14 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </div>
+<h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">Application Under Review</h1>
+</td></tr>
+<tr><td style="padding: 32px 24px;">
+<p style="color: #1e293b; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
+<p style="color: #334155; font-size: 15px; line-height: 1.6;">Great news! Your application for the position of <strong style="color: #020617;">${jobTitle}</strong> at <strong style="color: #020617;">${companyName}</strong> is now being reviewed by our hiring team.</p>
+<div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+<p style="color: #64748b; font-size: 14px; margin: 0;">We will keep you updated on any further progress.</p>
+</div>
+<p style="color: #94a3b8; font-size: 13px; margin: 30px 0 0;">Best regards,<br/><strong style="color: #1e293b;">The ${companyName} Hiring Team</strong></p>
+</td></tr>
+<tr><td style="background: #f8fafc; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+<p style="color: #94a3b8; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
               `;
               break;
             case 'approved':
               emailSubject = `Congratulations! Your Application for ${jobTitle} Has Been Approved!`;
               emailHtml = `
-<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-  <div style="background: linear-gradient(135deg, #10b981 0%, #059670 100%); padding: 40px 30px; text-align: center;">
-    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
-    <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
-    <h2 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Congratulations!</h2>
-  </div>
-  <div style="padding: 40px 30px;">
-    <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
-    <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">We are thrilled to inform you that your application for the position of <strong style="color: #1f2937;">${jobTitle}</strong> at <strong style="color: #1f2937;">${companyName}</strong> has been <span style="color: #10b981; font-weight: bold;">APPROVED</span>!</p>
-    <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #10b981; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
-      <p style="color: #065f46; font-size: 14px; font-weight: 600; margin: 0;">The company will reach out to you shortly with next steps.</p>
-    </div>
-    <p style="color: #9ca3af; font-size: 13px; margin: 30px 0 0;">Best of luck!<br/><strong style="color: #1f2937;">The ${companyName} Team</strong></p>
-  </div>
-  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-    <p style="color: #9ca3af; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
-  </div>
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+<tr><td style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 32px 24px; text-align: center;">
+<div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="8" fill="#059669"/><path d="M8 16L13 21L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
 </div>
+<h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 600;">Congratulations!</h1>
+</td></tr>
+<tr><td style="padding: 32px 24px;">
+<p style="color: #1e293b; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
+<p style="color: #334155; font-size: 15px; line-height: 1.6;">We are thrilled to inform you that your application for the position of <strong style="color: #020617;">${jobTitle}</strong> at <strong style="color: #020617;">${companyName}</strong> has been <span style="color: #059669; font-weight: bold;">APPROVED</span>!</p>
+<div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 2px solid #10b981; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+<p style="color: #065f46; font-size: 14px; font-weight: 600; margin: 0;">The company will reach out to you shortly with next steps.</p>
+</div>
+<p style="color: #94a3b8; font-size: 13px; margin: 30px 0 0;">Best of luck!<br/><strong style="color: #1e293b;">The ${companyName} Team</strong></p>
+</td></tr>
+<tr><td style="background: #f8fafc; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+<p style="color: #94a3b8; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
               `;
               break;
             case 'rejected':
               emailSubject = `Application Update for ${jobTitle}`;
               emailHtml = `
-<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-  <div style="background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%); padding: 40px 30px; text-align: center;">
-    <img src="https://i.imgur.com/MissionHubLogo.png" alt="MissionHub" style="width: 180px; margin-bottom: 15px;">
-    <h2 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Application Update</h2>
-  </div>
-  <div style="padding: 40px 30px;">
-    <p style="color: #1f2937; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
-    <p style="color: #4b5563; font-size: 15px; line-height: 1.6;">Thank you for your interest in the position of <strong style="color: #1f2937;">${jobTitle}</strong> at <strong style="color: #1f2937;">${companyName}</strong>.</p>
-    <div style="background: #f3f4f6; border-radius: 12px; padding: 20px; margin: 25px 0;">
-      <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px;">After careful consideration, we have decided to proceed with other candidates whose qualifications more closely match our current needs.</p>
-      <p style="color: #6b7280; font-size: 14px; margin: 0;">We encourage you to apply for future positions that match your skills.</p>
-    </div>
-    <p style="color: #9ca3af; font-size: 13px; margin: 30px 0 0;">We wish you the best in your career journey!<br/><strong style="color: #1f2937;">The ${companyName} Team</strong></p>
-  </div>
-  <div style="background: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-    <p style="color: #9ca3af; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
-  </div>
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+<tr><td style="background: linear-gradient(135deg, #475569 0%, #334155 100%); padding: 32px 24px; text-align: center;">
+<div style="width: 48px; height: 48px; background: white; border-radius: 12px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="32" height="32" rx="8" fill="#475569"/><path d="M10 10L22 22M22 10L10 22" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>
 </div>
+<h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">Application Update</h1>
+</td></tr>
+<tr><td style="padding: 32px 24px;">
+<p style="color: #1e293b; font-size: 16px; margin: 0 0 20px;">Dear <strong>${applicantName}</strong>,</p>
+<p style="color: #334155; font-size: 15px; line-height: 1.6;">Thank you for your interest in the position of <strong style="color: #020617;">${jobTitle}</strong> at <strong style="color: #020617;">${companyName}</strong>.</p>
+<div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin: 25px 0;">
+<p style="color: #64748b; font-size: 14px; margin: 0 0 10px;">After careful consideration, we have decided to proceed with other candidates whose qualifications more closely match our current needs.</p>
+<p style="color: #64748b; font-size: 14px; margin: 0;">We encourage you to apply for future positions that match your skills.</p>
+</div>
+<p style="color: #94a3b8; font-size: 13px; margin: 30px 0 0;">We wish you the best in your career journey!<br/><strong style="color: #1e293b;">The ${companyName} Team</strong></p>
+</td></tr>
+<tr><td style="background: #f8fafc; padding: 20px 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+<p style="color: #94a3b8; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} MissionHub. All rights reserved.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
               `;
               break;
           }

@@ -175,15 +175,15 @@ class AIMatchingScheduler {
       : '';
     
     const html = `
-      <h2 style="color: #1F2937; margin-bottom: 16px;">AI-Powered Job Match Found!</h2>
-      <p style="color: #6B7280; margin-bottom: 24px;">
-        Our AI has analyzed your profile and found a <strong style="color: #4F46E5;">${matchScore}% match</strong> 
+      <h2 style="color: #020617; margin-bottom: 16px;">AI-Powered Job Match Found!</h2>
+      <p style="color: #64748b; margin-bottom: 24px;">
+        Our AI has analyzed your profile and found a <strong style="color: #020617;">${matchScore}% match</strong> 
         for the following position:
       </p>
       
-      <div style="background: #F3F4F6; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-        <h3 style="color: #1F2937; margin: 0 0 12px 0;">${job.title}</h3>
-        <p style="color: #6B7280; margin: 0 0 8px 0;">
+      <div style="background: #f8fafc; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
+        <h3 style="color: #020617; margin: 0 0 12px 0;">${job.title}</h3>
+        <p style="color: #64748b; margin: 0 0 8px 0;">
           ${job.company ? `<strong>Company:</strong> ${job.company}<br>` : ''}
           ${job.location ? `<strong>Location:</strong> ${job.location}<br>` : ''}
           ${job.salary ? `<strong>Salary:</strong> ${job.salary}<br>` : ''}
@@ -194,14 +194,14 @@ class AIMatchingScheduler {
       
       ${skillsText}
       
-      <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%); border-left: 4px solid #4F46E5; padding: 16px; border-radius: 0 12px 12px 0; margin-bottom: 24px;">
-        <p style="margin: 0; color: #1F2937; font-size: 14px;">
+      <div style="background: #f8fafc; border-left: 4px solid #020617; padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+        <p style="margin: 0; color: #1e293b; font-size: 14px;">
           <strong>Match Score:</strong> ${matchScore}%<br>
           <strong>Match Type:</strong> ${matchScore >= 80 ? 'Excellent Match' : matchScore >= 60 ? 'Good Match' : 'Potential Match'}
         </p>
       </div>
       
-      <p style="color: #6B7280; font-size: 14px; margin-bottom: 24px;">
+      <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">
         Don't miss this opportunity! Apply today to connect with ${job.company || 'this company'}.
       </p>
     `;
@@ -220,14 +220,14 @@ class AIMatchingScheduler {
       : '';
     
     const html = `
-      <h2 style="color: #1F2937; margin-bottom: 16px;">AI-Powered Candidate Match Found!</h2>
-      <p style="color: #6B7280; margin-bottom: 24px;">
-        Our AI has analyzed your job posting and found a <strong style="color: #4F46E5;">${matchScore}% match</strong>!
+      <h2 style="color: #020617; margin-bottom: 16px;">AI-Powered Candidate Match Found!</h2>
+      <p style="color: #64748b; margin-bottom: 24px;">
+        Our AI has analyzed your job posting and found a <strong style="color: #020617;">${matchScore}% match</strong>!
       </p>
       
-      <div style="background: #F3F4F6; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-        <h3 style="color: #1F2937; margin: 0 0 12px 0;">${candidateName}</h3>
-        <p style="color: #6B7280; margin: 0 0 8px 0;">
+      <div style="background: #f8fafc; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
+        <h3 style="color: #020617; margin: 0 0 12px 0;">${candidateName}</h3>
+        <p style="color: #64748b; margin: 0 0 8px 0;">
           ${candidate.profile?.title ? `<strong>Title:</strong> ${candidate.profile.title}<br>` : ''}
           ${candidate.profile?.yearsOfExperience ? `<strong>Experience:</strong> ${candidate.profile.yearsOfExperience} years<br>` : ''}
           ${candidate.profile?.location ? `<strong>Location:</strong> ${candidate.profile.location}<br>` : ''}
@@ -235,23 +235,23 @@ class AIMatchingScheduler {
         </p>
       </div>
       
-      <div style="background: #F3F4F6; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-        <p style="color: #6B7280; margin: 0 0 8px 0;">
+      <div style="background: #f8fafc; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
+        <p style="color: #64748b; margin: 0 0 8px 0;">
           <strong>For Job:</strong> ${job.title}
         </p>
       </div>
       
       ${skillsText}
       
-      <div style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%); border-left: 4px solid #4F46E5; padding: 16px; border-radius: 0 12px 12px 0; margin-bottom: 24px;">
-        <p style="margin: 0; color: #1F2937; font-size: 14px;">
+      <div style="background: #f8fafc; border-left: 4px solid #020617; padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
+        <p style="margin: 0; color: #1e293b; font-size: 14px;">
           <strong>Match Score:</strong> ${matchScore}%<br>
           <strong>Match Type:</strong> ${matchScore >= 80 ? 'Excellent Match' : matchScore >= 60 ? 'Good Match' : 'Potential Match'}
-        </p>
+</p>
       </div>
       
-      <p style="color: #6B7280; font-size: 14px; margin-bottom: 24px;">
-        Review this candidate's profile and reach out to start the hiring process!
+      <p style="color: #64748b; font-size: 14px; margin-bottom: 24px;">
+        Don't miss this opportunity! Review this candidate for ${job.title}.
       </p>
     `;
 

@@ -289,16 +289,16 @@ router.post('/send-verification', protect, async (req, res) => {
         subject: `Verify your email - ${action}`,
         message: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 20px; border-radius: 10px 10px 0 0;">
+            <div style="background: linear-gradient(135deg, #020617 0%, #1e293b 100%); padding: 20px; border-radius: 10px 10px 0 0;">
               <h2 style="color: white; margin: 0;">Verify Your Email</h2>
             </div>
-            <div style="background: #f9fafb; padding: 20px; border-radius: 0 0 10px 10px;">
-              <p style="color: #374151;">Hello ${user.name || 'there'},</p>
-              <p style="color: #374151;">You requested to ${action}. Please use the verification code below:</p>
-              <div style="background: white; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; border: 2px dashed #e5e7eb;">
-                <h1 style="color: #6366f1; margin: 0; font-size: 32px; letter-spacing: 8px;">${verificationCode}</h1>
+            <div style="background: #ffffff; padding: 20px; border-radius: 0 0 10px 10px;">
+              <p style="color: #1e293b;">Hello ${user.name || 'there'},</p>
+              <p style="color: #334155;">You requested to ${action}. Please use the verification code below:</p>
+              <div style="background: #f8fafc; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; border: 2px dashed #020617;">
+                <h1 style="color: #020617; margin: 0; font-size: 32px; letter-spacing: 8px;">${verificationCode}</h1>
               </div>
-              <p style="color: #6b7280; font-size: 12px;">This code will expire in 10 minutes.</p>
+              <p style="color: #64748b; font-size: 12px;">This code will expire in 10 minutes.</p>
             </div>
           </div>
         `
