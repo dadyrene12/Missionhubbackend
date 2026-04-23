@@ -61,6 +61,10 @@ const applicationSchema = new mongoose.Schema({
     question: String,
     answer: String
   }],
+  aiScreening: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
   companyId: {
     type: mongoose.Schema.ObjectId,
     ref: 'User',

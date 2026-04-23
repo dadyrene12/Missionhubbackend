@@ -2,6 +2,7 @@
   "name": "missionbackend",
   "version": "1.0.0",
   "description": "MissionHub - Job & Recruitment Platform Backend",
+  "type": "commonjs",
   "main": "index.js",
   "scripts": {
     "test": "jest --testTimeout=10000",

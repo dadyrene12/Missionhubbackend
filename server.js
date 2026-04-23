@@ -407,6 +407,43 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve resume files directly via API for production
+app.get('/api/file/:type/:filename', async (req, res) => {
+  try {
+    // Check authentication
+    let token = req.headers.authorization?.split(' ')[1] || req.query.token;
+    if (!token) {
+      // For development, allow without token
+      if (process.env.NODE_ENV === "development" || process.env.NODE_ENV !== "production") {
+        token = 'dev';
+      } else {
+        return res.status(401).json({ success: false, message: 'Authentication required' });
+      }
+    }
+    
+    // Verify token (skip for dev)
+    if (token !== 'dev') {
+      const jwt = require('jsonwebtoken');
+      jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key-missionhub-admin');
+    }
+    
+    const { type, filename } = req.params;
+    const dir = type === 'resume' ? 'resumes' : (type === 'logo' ? 'logos' : '');
+    const filePath = path.join(__dirname, 'uploads', dir, filename);
+    
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
+    res.sendFile(filePath);
+  } catch (error) {
+    res.status(401).json({ success: false, message: 'Invalid token' });
+  }
+});
+
 // Serve resume files with correct Content-Type headers
 app.get('/api/resume/:filename', async (req, res) => {
   try {
