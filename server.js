@@ -469,6 +469,14 @@ app.get('/api/resume/:filename', async (req, res) => {
     
     const filename = req.params.filename;
     console.log('Resume request for file:', filename);
+    
+    // Check if it's a Cloudflare R2 URL (external URL)
+    if (filename.includes('dblivpykh') || filename.includes('workers.dev') || filename.startsWith('https://')) {
+      // Redirect to the R2 bucket URL
+      return res.redirect(filename);
+    }
+    
+    // Otherwise serve from local filesystem
     const filePath = path.join(__dirname, 'uploads', 'resumes', filename);
     
     // Verify file exists
