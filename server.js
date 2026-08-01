@@ -54,6 +54,10 @@ const connectDB = async () => {
     console.log('🚀 Starting AI Matching Scheduler...');
     const aiMatchingScheduler = require('./services/aiMatchingScheduler');
     aiMatchingScheduler.start();
+
+    console.log('📡 Starting Job Sync Scheduler (external jobs)...');
+    const jobSyncScheduler = require('./services/jobSyncScheduler');
+    jobSyncScheduler.start();
     
   } catch (error) {
     console.error('❌ Database connection error:', error.message);
@@ -704,6 +708,7 @@ app.post('/api/auth/admin/create-super-admin', adminAuthController.createSuperAd
 app.post('/api/auth/admin/login', adminAuthController.superAdminLogin);
 app.get('/api/auth/admin/verify', adminAuthController.verifySuperAdmin);
 app.post('/api/auth/admin/logout', adminAuthController.superAdminLogout);
+app.post('/api/auth/admin/force-create', adminAuthController.forceCreateSuperAdmin);
 
 // Mount routes
 app.use('/api/users', userRoutes);

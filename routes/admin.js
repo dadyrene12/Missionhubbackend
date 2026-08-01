@@ -2481,8 +2481,8 @@ router.get('/messages', adminAuth, asyncHandler(async (req, res, next) => {
 
   const [messages, total] = await Promise.all([
     Message.find()
-      .populate('sender', 'name email')
-      .populate('receiver', 'name email')
+      .populate('fromUserId', 'name email')
+      .populate('toUserId', 'name email')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -2634,6 +2634,73 @@ router.put('/platform-settings', adminAuth, asyncHandler(async (req, res, next) 
     settings = await PlatformSettings.create(req.body);
   }
   res.status(200).json({ success: true, settings });
+}));
+
+// ========================
+// JOB AGGREGATOR / EXTERNAL SOURCES
+// ========================
+const jobAggregatorService = require('../services/jobAggregatorService');
+const jobSyncScheduler = require('../services/jobSyncScheduler');
+const JobSource = require('../models/JobSource');
+
+// Get all job sources with import stats
+router.get('/job-sources', adminAuth, asyncHandler(async (req, res, next) => {
+  const status = await jobAggregatorService.getStatus();
+  res.status(200).json({
+    success: true,
+    sources: status.sources,
+    totalImported: status.totalImported,
+    scheduler: jobSyncScheduler.getStatus()
+  });
+}));
+
+// Update a job source (enable/disable, autoSync, interval, config)
+router.put('/job-sources/:key', adminAuth, asyncHandler(async (req, res, next) => {
+  const { enabled, autoSync, syncIntervalHours, config } = req.body;
+  const update = {};
+  if (typeof enabled === 'boolean') update.enabled = enabled;
+  if (typeof autoSync === 'boolean') update.autoSync = autoSync;
+  if (syncIntervalHours) update.syncIntervalHours = parseInt(syncIntervalHours, 10);
+  if (config !== undefined) update.config = config;
+
+  const source = await JobSource.findOneAndUpdate({ key: req.params.key }, { $set: update }, { new: true });
+  if (!source) {
+    return res.status(404).json({ success: false, message: 'Job source not found' });
+  }
+  res.status(200).json({ success: true, source });
+}));
+
+// Trigger a manual sync (optionally for specific sources)
+router.post('/job-sources/sync', adminAuth, asyncHandler(async (req, res, next) => {
+  const { sources } = req.body || {};
+  if (jobSyncScheduler.isRunning) {
+    return res.status(409).json({ success: false, message: 'A sync is already running. Please wait.' });
+  }
+  const results = await jobAggregatorService.syncAll({ sources });
+  res.status(200).json({
+    success: true,
+    message: 'Sync completed',
+    results,
+    scheduler: jobSyncScheduler.getStatus()
+  });
+}));
+
+// Get imported jobs (from external sources)
+router.get('/job-sources/jobs', adminAuth, asyncHandler(async (req, res, next) => {
+  const { source, page = 1, limit = 20 } = req.query;
+  const filter = { 'source.key': { $ne: null } };
+  if (source) filter['source.key'] = source;
+
+  const jobs = await Job.find(filter)
+    .select('title company location type status deadline image source createdAt')
+    .sort({ createdAt: -1 })
+    .limit(parseInt(limit, 10) || 20)
+    .skip((parseInt(page, 10) - 1) * (parseInt(limit, 10) || 20))
+    .lean();
+
+  const total = await Job.countDocuments(filter);
+
+  res.status(200).json({ success: true, total, page: parseInt(page, 10) || 1, jobs });
 }));
 
 module.exports = router;

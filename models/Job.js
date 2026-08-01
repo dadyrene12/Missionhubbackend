@@ -20,7 +20,7 @@ const jobSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['full-time', 'part-time', 'contract', 'internship', 'remote'],
+    enum: ['full-time', 'part-time', 'contract', 'internship', 'remote', 'tender', 'consultancy', 'public', 'other'],
     default: 'full-time'
   },
   category: {
@@ -98,6 +98,14 @@ const jobSchema = new mongoose.Schema({
   companyId: {
     type: mongoose.Schema.ObjectId,
     ref: 'User'
+  },
+  source: {
+    key: String,
+    name: String,
+    url: String,
+    externalId: String,
+    applyUrl: String,
+    importedAt: Date
   }
 }, {
   timestamps: true
@@ -107,8 +115,10 @@ jobSchema.index({ postedBy: 1, createdAt: -1 });
 jobSchema.index({ companyId: 1, createdAt: -1 });
 jobSchema.index({ title: 'text', description: 'text' });
 jobSchema.index({ status: 1, createdAt: -1 });
+jobSchema.index({ createdAt: -1 });
 jobSchema.index({ category: 1, type: 1 });
 jobSchema.index({ remote: 1, location: 1 });
+jobSchema.index({ 'source.key': 1, 'source.externalId': 1 }, { unique: true, sparse: true });
 
 jobSchema.pre('save', function(next) {
   if (!this.experience) {
